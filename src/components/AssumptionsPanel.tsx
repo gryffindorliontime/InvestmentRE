@@ -9,6 +9,46 @@ interface AssumptionsPanelProps {
   onReset: () => void;
 }
 
+// Free-typing numeric input: while focused it shows exactly what the user has
+// typed (a local draft string), committing every parseable value live; on
+// blur it snaps back to the canonical formatted value. Formatting the prop
+// directly into a controlled input (the previous approach) rewrote the field
+// on every keystroke — e.g. typing "15" became "1.00" after the first key.
+function DraftNumberInput({
+  displayValue,
+  onCommit,
+  step,
+}: {
+  displayValue: string;
+  onCommit: (value: number) => void;
+  step?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <input
+      type="number"
+      step={step}
+      value={draft ?? displayValue}
+      onFocus={() => setDraft(displayValue)}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const parsed = Number(e.target.value);
+        if (e.target.value !== "" && Number.isFinite(parsed)) {
+          onCommit(parsed);
+        }
+      }}
+      onBlur={() => setDraft(null)}
+      className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
+    />
+  );
+}
+
+// Trim float noise without forcing trailing zeros: 0.0675 -> "6.75", 0.2 -> "20".
+function formatPct(fraction: number): string {
+  return String(parseFloat((fraction * 100).toFixed(4)));
+}
+
 function PctField({
   label,
   value,
@@ -22,15 +62,30 @@ function PctField({
     <label className="flex flex-col gap-1 text-xs text-slate-600">
       {label}
       <div className="flex items-center gap-1">
-        <input
-          type="number"
+        <DraftNumberInput
+          displayValue={formatPct(value)}
+          onCommit={(v) => onChange(v / 100)}
           step="0.1"
-          value={(value * 100).toFixed(2)}
-          onChange={(e) => onChange(Number(e.target.value) / 100)}
-          className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
         />
         <span className="text-xs text-slate-500">%</span>
       </div>
+    </label>
+  );
+}
+
+function DollarField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-slate-600">
+      {label}
+      <DraftNumberInput displayValue={String(value)} onCommit={onChange} />
     </label>
   );
 }
@@ -67,15 +122,11 @@ export function AssumptionsPanel({ assumptions, onChange, onReset }: Assumptions
             value={assumptions.interestRatePct}
             onChange={(v) => update("interestRatePct", v)}
           />
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
-            Loan term (yrs)
-            <input
-              type="number"
-              value={assumptions.loanTermYears}
-              onChange={(e) => update("loanTermYears", Number(e.target.value))}
-              className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
-            />
-          </label>
+          <DollarField
+            label="Loan term (yrs)"
+            value={assumptions.loanTermYears}
+            onChange={(v) => update("loanTermYears", v)}
+          />
           <PctField
             label="Closing costs"
             value={assumptions.closingCostsPct}
@@ -96,15 +147,11 @@ export function AssumptionsPanel({ assumptions, onChange, onReset }: Assumptions
             value={assumptions.propertyMgmtPct}
             onChange={(v) => update("propertyMgmtPct", v)}
           />
-          <label className="flex flex-col gap-1 text-xs text-slate-600">
-            Annual insurance ($)
-            <input
-              type="number"
-              value={assumptions.annualInsuranceEstimate}
-              onChange={(e) => update("annualInsuranceEstimate", Number(e.target.value))}
-              className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
-            />
-          </label>
+          <DollarField
+            label="Annual insurance ($)"
+            value={assumptions.annualInsuranceEstimate}
+            onChange={(v) => update("annualInsuranceEstimate", v)}
+          />
           <PctField
             label="Property tax (if unknown)"
             value={assumptions.propertyTaxPct}
