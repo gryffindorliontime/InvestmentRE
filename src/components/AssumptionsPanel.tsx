@@ -105,6 +105,11 @@ export function AssumptionsPanel({ assumptions, onChange, onReset }: Assumptions
               className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
             />
           </label>
+          <PctField
+            label="Property tax (if unknown)"
+            value={assumptions.propertyTaxPct}
+            onChange={(v) => update("propertyTaxPct", v)}
+          />
         </div>
       )}
     </div>
