@@ -90,8 +90,14 @@ export function PropertyDetailDrawer({
             <ConfidenceBadge estimate={rentEstimate} />
           </div>
           <p className="mt-1 text-xl font-bold text-slate-900">
-            {formatCurrency(rentEstimate.monthlyRent)}/mo
+            {formatCurrency(rentEstimate.monthlyRent)}/mo{" "}
+            <span className="text-sm font-normal text-slate-500">
+              {property.unitCount > 1 ? `total across ${property.unitCount} units` : "total"}
+            </span>
           </p>
+          {property.unitCount > 1 && (
+            <Row label="Avg rent per unit" value={`${formatCurrency(rentEstimate.perUnitMonthlyRent)}/mo`} />
+          )}
           <Row label="Comps weight" value={formatPercent(rentEstimate.compsWeight * 100, 0)} />
           <Row label="Building weight" value={formatPercent(rentEstimate.buildingWeight * 100, 0)} />
           <Row label="Zip baseline weight" value={formatPercent(rentEstimate.zipBaselineWeight * 100, 0)} />

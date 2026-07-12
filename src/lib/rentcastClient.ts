@@ -175,12 +175,21 @@ function mapComparable(raw: RawRentComparable): RentComp {
   };
 }
 
-export function mapAvmToRentEstimate(raw: RawAvmRentResponse, zipBaselineMonthlyRent: number): RentEstimate {
+export function mapAvmToRentEstimate(
+  raw: RawAvmRentResponse,
+  zipBaselineMonthlyRent: number,
+  unitCount: number
+): RentEstimate {
   const comps = raw.comparables.map(mapComparable);
-  // RentCast's AVM is itself comp-derived, so we treat it as our "comps" tier
-  // directly rather than re-blending with the zip baseline.
+  // RentCast's AVM estimates rent for the address as queried. Sale listings
+  // report the whole property at that address, so we treat raw.rent as the
+  // total for the property (consistent with how price/other fields work)
+  // and derive a per-unit figure by dividing — this is an approximation for
+  // multi-family addresses since RentCast doesn't expose a per-unit AVM.
+  const safeUnitCount = Math.max(1, unitCount);
   return {
     monthlyRent: raw.rent,
+    perUnitMonthlyRent: Math.round(raw.rent / safeUnitCount),
     method: "comps",
     compsUsed: comps,
     compsWeight: 1,
@@ -241,6 +250,7 @@ export interface RentEstimateParams {
   bedrooms?: number;
   bathrooms?: number;
   squareFootage?: number;
+  unitCount?: number;
 }
 
 export async function getRentEstimate(
@@ -255,5 +265,5 @@ export async function getRentEstimate(
     squareFootage: params.squareFootage,
   });
 
-  return mapAvmToRentEstimate(raw, zipBaselineMonthlyRent);
+  return mapAvmToRentEstimate(raw, zipBaselineMonthlyRent, params.unitCount ?? 1);
 }

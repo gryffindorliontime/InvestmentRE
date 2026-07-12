@@ -62,7 +62,11 @@ export interface RentComp {
 export type RentEstimateMethod = "comps" | "building" | "zip-baseline" | "blended";
 
 export interface RentEstimate {
+  // Total monthly rent for the whole property (all units combined) — this is
+  // what ROI math (roi.ts) uses. For a single-unit property it equals
+  // perUnitMonthlyRent.
   monthlyRent: number;
+  perUnitMonthlyRent: number;
   method: RentEstimateMethod;
   compsUsed: RentComp[];
   compsWeight: number; // 0-1, share of the blended estimate coming from comps

@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const beds = params.get("beds");
   const baths = params.get("baths");
   const sqft = params.get("sqft");
+  const unitCount = params.get("unitCount");
 
   if (!address || !city || !state || !zip) {
     return NextResponse.json({ error: "address, city, state, and zip are required" }, { status: 400 });
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
         bedrooms: beds ? Number(beds) : undefined,
         bathrooms: baths ? Number(baths) : undefined,
         squareFootage: sqft ? Number(sqft) : undefined,
+        unitCount: unitCount ? Number(unitCount) : undefined,
       },
       zipBaseline
     );

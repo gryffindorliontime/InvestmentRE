@@ -122,6 +122,7 @@ export default function Home() {
         beds: String(property.beds),
         baths: String(property.baths),
         sqft: String(property.sqft),
+        unitCount: String(property.unitCount),
       });
       const res = await fetch(`/api/rent-estimate?${qs.toString()}`);
       const data = await res.json();

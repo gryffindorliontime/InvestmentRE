@@ -101,7 +101,14 @@ export function ResultsTable({ listings, sort, onSortChange, onSelect, selectedI
               </td>
               <td className="px-3 py-2 font-medium text-slate-900">{formatCurrency(property.price)}</td>
               <td className="px-3 py-2">
-                <div className="text-slate-900">{formatCurrency(rentEstimate.monthlyRent)}/mo</div>
+                <div className="text-slate-900">
+                  {formatCurrency(rentEstimate.monthlyRent)}/mo{" "}
+                  {property.unitCount > 1 && (
+                    <span className="text-xs text-slate-500">
+                      total ({formatCurrency(rentEstimate.perUnitMonthlyRent)}/unit)
+                    </span>
+                  )}
+                </div>
                 <ConfidenceBadge estimate={rentEstimate} />
               </td>
               <td className="px-3 py-2 font-medium text-slate-900">{formatPercent(roi.capRatePct)}</td>

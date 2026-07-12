@@ -27,6 +27,7 @@ export function estimateRent(
   if (property.homeType === "Land") {
     return {
       monthlyRent: 0,
+      perUnitMonthlyRent: 0,
       method: "zip-baseline",
       compsUsed: [],
       compsWeight: 0,
@@ -37,13 +38,16 @@ export function estimateRent(
     };
   }
 
+  // Units above 0 for anything that isn't land; guards the division below.
+  const unitCount = Math.max(1, property.unitCount);
+
   if (property.buildingRentRoll && property.buildingRentRoll.unitRents.length > 0) {
-    const buildingAvg =
-      property.buildingRentRoll.unitRents.reduce((sum, r) => sum + r, 0) /
-      property.buildingRentRoll.unitRents.length;
+    const totalRent = property.buildingRentRoll.unitRents.reduce((sum, r) => sum + r, 0);
+    const perUnitRent = totalRent / property.buildingRentRoll.unitRents.length;
 
     return {
-      monthlyRent: Math.round(buildingAvg),
+      monthlyRent: Math.round(totalRent),
+      perUnitMonthlyRent: Math.round(perUnitRent),
       method: "building",
       compsUsed: comps,
       compsWeight: 0,
@@ -56,11 +60,13 @@ export function estimateRent(
 
   if (comps.length >= MIN_COMPS_FOR_FULL_WEIGHT) {
     const compsMedianRent = median(comps.map((c) => c.monthlyRent));
-    const blended =
-      compsMedianRent * COMPS_BLEND_WEIGHT + zipBaselineMonthlyRent * ZIP_BLEND_WEIGHT;
+    // Comps are individual rental listings, so this blend is inherently a
+    // per-unit estimate — scale by unit count for the property's total rent.
+    const perUnitRent = compsMedianRent * COMPS_BLEND_WEIGHT + zipBaselineMonthlyRent * ZIP_BLEND_WEIGHT;
 
     return {
-      monthlyRent: Math.round(blended),
+      monthlyRent: Math.round(perUnitRent * unitCount),
+      perUnitMonthlyRent: Math.round(perUnitRent),
       method: "blended",
       compsUsed: comps,
       compsWeight: COMPS_BLEND_WEIGHT,
@@ -71,9 +77,11 @@ export function estimateRent(
     };
   }
 
-  // Sparse or no comps: fall back entirely to the zip/metro baseline.
+  // Sparse or no comps: fall back entirely to the zip/metro baseline (also a
+  // per-unit figure, scaled the same way).
   return {
-    monthlyRent: Math.round(zipBaselineMonthlyRent),
+    monthlyRent: Math.round(zipBaselineMonthlyRent * unitCount),
+    perUnitMonthlyRent: Math.round(zipBaselineMonthlyRent),
     method: "zip-baseline",
     compsUsed: comps,
     compsWeight: 0,

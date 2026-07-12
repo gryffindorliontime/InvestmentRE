@@ -91,7 +91,10 @@ export function PropertyMap({ listings, onSelect }: PropertyMapProps) {
                 <p>
                   Cap rate: <span className="font-medium">{formatPercent(listing.roi.capRatePct)}</span>
                 </p>
-                <p>Est. rent: {formatCurrency(listing.rentEstimate.monthlyRent)}/mo</p>
+                <p>
+                  Est. rent: {formatCurrency(listing.rentEstimate.monthlyRent)}/mo
+                  {listing.property.unitCount > 1 ? " total" : ""}
+                </p>
               </div>
             </Popup>
           </Marker>
