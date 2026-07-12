@@ -13,6 +13,10 @@ export const DEFAULT_ASSUMPTIONS: FinancingAssumptions = {
 };
 
 function monthlyMortgagePayment(loanAmount: number, annualRatePct: number, termYears: number): number {
+  // No loan (100% down) or a cleared/zero loan-term field: without this guard
+  // the amortization formula divides by zero and Infinity cascades through
+  // every cash-flow number in the UI.
+  if (loanAmount <= 0 || termYears <= 0) return 0;
   const monthlyRate = annualRatePct / 12;
   const numPayments = termYears * 12;
   if (monthlyRate === 0) return loanAmount / numPayments;
@@ -48,7 +52,11 @@ export function computeROI(
   const grossYieldPct = property.price > 0 ? (annualRent / property.price) * 100 : 0;
   const rentToPricePct = property.price > 0 ? (monthlyRent / property.price) * 100 : 0;
 
-  const downPaymentAmount = property.price * assumptions.downPaymentPct;
+  // Clamp to [0, 100%]: a down payment typed as 150% would otherwise produce
+  // a negative loan amount, whose "payment" comes out negative and silently
+  // inflates cash flow with phantom income.
+  const downPaymentPct = Math.min(1, Math.max(0, assumptions.downPaymentPct));
+  const downPaymentAmount = property.price * downPaymentPct;
   const loanAmount = property.price - downPaymentAmount;
   const closingCosts = property.price * assumptions.closingCostsPct;
   const totalCashInvested = downPaymentAmount + closingCosts;
@@ -65,10 +73,16 @@ export function computeROI(
   const cashOnCashPct = totalCashInvested > 0 ? (annualCashFlow / totalCashInvested) * 100 : 0;
 
   const loanToValuePct = property.price > 0 ? (loanAmount / property.price) * 100 : 0;
+  // When there's no payment (100% down, or loan term cleared to 0), the
+  // amortization-derived fields are meaningless — zero them rather than
+  // reporting interest on a loan that's never paid.
+  const hasPayment = monthlyMortgagePI > 0;
   const monthlyRate = assumptions.interestRatePct / 12;
-  const firstMonthInterest = loanAmount * monthlyRate;
-  const firstMonthPrincipal = monthlyMortgagePI - firstMonthInterest;
-  const totalInterestOverLoanTerm = monthlyMortgagePI * assumptions.loanTermYears * 12 - loanAmount;
+  const firstMonthInterest = hasPayment ? loanAmount * monthlyRate : 0;
+  const firstMonthPrincipal = hasPayment ? monthlyMortgagePI - firstMonthInterest : 0;
+  const totalInterestOverLoanTerm = hasPayment
+    ? monthlyMortgagePI * assumptions.loanTermYears * 12 - loanAmount
+    : 0;
 
   return {
     monthlyRent,

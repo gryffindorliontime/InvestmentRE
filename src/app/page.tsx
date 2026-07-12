@@ -30,6 +30,14 @@ export default function Home() {
   const [assumptions, setAssumptions] = useState<FinancingAssumptions>(DEFAULT_ASSUMPTIONS);
   const [sort, setSort] = useState<SortState>({ key: "capRatePct", direction: "desc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // A comps-fetch error belongs to the property it happened on — clear it
+  // when the drawer switches to a different property (or closes) so it
+  // doesn't show up under an unrelated listing.
+  function selectListing(id: string | null) {
+    setSelectedId(id);
+    setFetchCompsError(null);
+  }
   const [view, setView] = useState<"table" | "map">("table");
 
   const [dataSource, setDataSource] = useState<"mock" | "live">("mock");
@@ -100,14 +108,19 @@ export default function Home() {
 
     const deduped = Array.from(new Map(collected.map((entry) => [entry.property.id, entry])).values());
 
-    setLiveEntries(deduped);
     setRegionErrors(errors);
-    if (deduped.length === 0 && errors.length > 0) {
+    // Only replace what's on screen if at least one region actually returned.
+    // When every region errors out, keep the current results (mock or a prior
+    // live search) instead of wiping them for an empty table.
+    if (errors.length === regions.length && regions.length > 0) {
       setLiveError("All regions failed to search.");
+    } else {
+      setLiveError(null);
+      setLiveEntries(deduped);
+      setRentOverrides({});
+      setDataSource("live");
+      setSelectedId(null);
     }
-    setRentOverrides({});
-    setDataSource("live");
-    setSelectedId(null);
     setLiveLoading(false);
     setLiveLoadingProgress(null);
   }
@@ -206,18 +219,18 @@ export default function Home() {
               listings={sorted}
               sort={sort}
               onSortChange={setSort}
-              onSelect={(listing) => setSelectedId(listing.property.id)}
+              onSelect={(listing) => selectListing(listing.property.id)}
               selectedId={selectedId}
             />
           ) : (
-            <PropertyMap listings={sorted} onSelect={(listing) => setSelectedId(listing.property.id)} />
+            <PropertyMap listings={sorted} onSelect={(listing) => selectListing(listing.property.id)} />
           )}
         </div>
       </div>
 
       <PropertyDetailDrawer
         listing={selectedListing}
-        onClose={() => setSelectedId(null)}
+        onClose={() => selectListing(null)}
         onFetchLiveComps={handleFetchLiveComps}
         fetchingLiveComps={fetchingCompsFor === selectedListing?.property.id}
         fetchLiveCompsError={fetchCompsError}
