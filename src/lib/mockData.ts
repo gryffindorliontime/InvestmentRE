@@ -147,15 +147,42 @@ export function perUnitBeds(property: { beds: number; unitCount: number }): numb
   return property.unitCount > 1 ? Math.max(1, Math.round(property.beds / property.unitCount)) : property.beds;
 }
 
+// Roughly matches the actual mix of active US for-sale listings: single
+// family dominates, whole-building multifamily and manufactured homes are a
+// small slice, and vacant land is a bigger share of listings than people
+// expect.
 const HOME_TYPE_WEIGHTS: [HomeType, number][] = [
-  ["Single Family", 0.42],
-  ["Condo", 0.16],
-  ["Townhouse", 0.12],
-  ["Multi-Family (2-4 unit)", 0.14],
-  ["Multi-Family (5+ unit)", 0.06],
-  ["Manufactured", 0.06],
-  ["Land", 0.04],
+  ["Single Family", 0.55],
+  ["Condo", 0.15],
+  ["Townhouse", 0.1],
+  ["Multi-Family (2-4 unit)", 0.07],
+  ["Multi-Family (5+ unit)", 0.02],
+  ["Manufactured", 0.04],
+  ["Land", 0.07],
 ];
+
+// Rent discount/premium by home style relative to a site-built single-family
+// home with the same bedroom count in the same zip. Manufactured homes rent
+// well below site-built equivalents; multifamily units rent slightly below
+// (smaller, shared walls); condos roughly at par net of the amenity/size
+// tradeoff.
+const HOME_TYPE_RENT_FACTOR: Record<HomeType, number> = {
+  "Single Family": 1.0,
+  "Multi-Family (2-4 unit)": 0.92,
+  "Multi-Family (5+ unit)": 0.9,
+  Condo: 0.97,
+  Townhouse: 1.0,
+  Manufactured: 0.72,
+  Land: 0,
+};
+
+// Per-unit monthly rent baseline for a property: zip/bedroom table adjusted
+// for home style. Use this instead of getZipBaselineRent when a full
+// property is in hand.
+export function getRentBaselineForProperty(property: Property): number {
+  const factor = HOME_TYPE_RENT_FACTOR[property.homeType] ?? 1;
+  return Math.round(zipBaselineFor(property.zip, perUnitBeds(property)) * factor);
+}
 
 function weightedPick<T>(rand: () => number, weights: [T, number][]): T {
   const r = rand();
@@ -246,7 +273,8 @@ function generateMockProperties(count: number): Property[] {
       hasBasement = rand() < 0.25;
 
       if (rand() < 0.35) {
-        const perUnitBaseline = zipBaselineFor(cityDef.zip, bedsPerUnit);
+        const perUnitBaseline =
+          zipBaselineFor(cityDef.zip, bedsPerUnit) * HOME_TYPE_RENT_FACTOR[homeType];
         buildingRentRoll = {
           buildingName: `${streetName} ${homeType === "Multi-Family (2-4 unit)" ? "Fourplex" : "Apartments"}`,
           unitRents: Array.from({ length: unitCount }, () =>
@@ -340,7 +368,7 @@ export function getCompsForProperty(property: Property): RentComp[] {
   if (property.homeType === "Land") return [];
 
   const rand = seededRandom(property.id);
-  const baseline = zipBaselineFor(property.zip, perUnitBeds(property));
+  const baseline = getRentBaselineForProperty(property);
   // Vary comp count so filters/confidence badges show a realistic mix: some
   // properties land in the "sparse comps -> zip baseline fallback" tier.
   const compCount = Math.floor(rand() * 10); // 0-9

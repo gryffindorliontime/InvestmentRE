@@ -1,4 +1,4 @@
-import { getCompsForProperty, getZipBaselineRent, MOCK_PROPERTIES, perUnitBeds } from "./mockData";
+import { getCompsForProperty, getRentBaselineForProperty, MOCK_PROPERTIES } from "./mockData";
 import { estimateRent } from "./rentEstimate";
 import { computeROI } from "./roi";
 import type {
@@ -20,7 +20,7 @@ export interface EnrichedListing {
 export function buildEnrichedListings(assumptions: FinancingAssumptions): EnrichedListing[] {
   return MOCK_PROPERTIES.map((property) => {
     const comps = getCompsForProperty(property);
-    const zipBaseline = getZipBaselineRent(property.zip, perUnitBeds(property));
+    const zipBaseline = getRentBaselineForProperty(property);
     const rentEstimate = estimateRent(property, comps, zipBaseline);
     const roi = computeROI(property, rentEstimate.monthlyRent, assumptions);
     return { property, rentEstimate, roi };
