@@ -1,0 +1,175 @@
+"use client";
+
+import { ConfidenceBadge } from "./ConfidenceBadge";
+import { buildRealtorSearchUrl, buildZillowSearchUrl } from "@/lib/externalLinks";
+import { formatCurrency, formatPercent } from "@/lib/format";
+import type { EnrichedListing } from "@/lib/searchEngine";
+
+interface PropertyDetailDrawerProps {
+  listing: EnrichedListing | null;
+  onClose: () => void;
+  onFetchLiveComps: (listing: EnrichedListing) => void;
+  fetchingLiveComps: boolean;
+  fetchLiveCompsError: string | null;
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-100 py-1.5 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className="font-medium text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+export function PropertyDetailDrawer({
+  listing,
+  onClose,
+  onFetchLiveComps,
+  fetchingLiveComps,
+  fetchLiveCompsError,
+}: PropertyDetailDrawerProps) {
+  if (!listing) return null;
+  const { property, rentEstimate, roi } = listing;
+  const canUpgradeToLiveComps = property.source === "rentcast" && rentEstimate.method !== "comps";
+
+  return (
+    <div className="fixed inset-0 z-20 flex justify-end bg-black/30" onClick={onClose}>
+      <div
+        className="h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">{property.address}</h2>
+            <p className="text-sm text-slate-500">
+              {property.city}, {property.state} {property.zip}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
+            ✕
+          </button>
+        </div>
+
+        <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(property.price)}</p>
+
+        <div className="mt-2 flex gap-3 text-sm">
+          <a
+            href={buildZillowSearchUrl(property)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-blue-600 hover:underline"
+          >
+            View on Zillow ↗
+          </a>
+          <a
+            href={buildRealtorSearchUrl(property)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-blue-600 hover:underline"
+          >
+            View on Realtor.com ↗
+          </a>
+        </div>
+
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold text-slate-800">Property</h3>
+          <Row label="Home type" value={property.homeType} />
+          <Row label="Beds / baths" value={`${property.beds} / ${property.baths}`} />
+          <Row label="Square footage" value={property.sqft ? `${property.sqft.toLocaleString()} sqft` : "—"} />
+          <Row label="Lot size" value={property.lotSqft ? `${property.lotSqft.toLocaleString()} sqft` : "—"} />
+          <Row label="Year built" value={property.yearBuilt ? String(property.yearBuilt) : "—"} />
+          <Row label="Units" value={String(property.unitCount)} />
+          <Row label="Days on market" value={`${property.daysOnMarket}d`} />
+          <Row label="HOA" value={property.hoaMonthly ? `${formatCurrency(property.hoaMonthly)}/mo` : "None"} />
+        </section>
+
+        <section className="mt-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-800">Rent estimate</h3>
+            <ConfidenceBadge estimate={rentEstimate} />
+          </div>
+          <p className="mt-1 text-xl font-bold text-slate-900">
+            {formatCurrency(rentEstimate.monthlyRent)}/mo
+          </p>
+          <Row label="Comps weight" value={formatPercent(rentEstimate.compsWeight * 100, 0)} />
+          <Row label="Building weight" value={formatPercent(rentEstimate.buildingWeight * 100, 0)} />
+          <Row label="Zip baseline weight" value={formatPercent(rentEstimate.zipBaselineWeight * 100, 0)} />
+          <Row label="Zip baseline rent" value={`${formatCurrency(rentEstimate.zipBaselineMonthlyRent)}/mo`} />
+
+          {canUpgradeToLiveComps && (
+            <div className="mt-2">
+              <button
+                onClick={() => onFetchLiveComps(listing)}
+                disabled={fetchingLiveComps}
+                className="w-full rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {fetchingLiveComps ? "Fetching live comps…" : "Get live rent comps (1 API call)"}
+              </button>
+              {fetchLiveCompsError && (
+                <p className="mt-1 text-xs text-rose-600">{fetchLiveCompsError}</p>
+              )}
+            </div>
+          )}
+
+          {rentEstimate.compsUsed.length > 0 && (
+            <div className="mt-2">
+              <p className="mb-1 text-xs font-medium text-slate-600">
+                {rentEstimate.compsUsed.length} rental comps used
+              </p>
+              <div className="max-h-40 overflow-y-auto rounded border border-slate-100">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Address</th>
+                      <th className="px-2 py-1 text-right">Dist.</th>
+                      <th className="px-2 py-1 text-right">Rent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rentEstimate.compsUsed.map((comp) => (
+                      <tr key={comp.id} className="border-t border-slate-100">
+                        <td className="px-2 py-1">{comp.address}</td>
+                        <td className="px-2 py-1 text-right">{comp.distanceMiles} mi</td>
+                        <td className="px-2 py-1 text-right">{formatCurrency(comp.monthlyRent)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {property.buildingRentRoll && (
+            <div className="mt-2 rounded bg-slate-50 p-2 text-xs text-slate-600">
+              Building: <span className="font-medium">{property.buildingRentRoll.buildingName}</span> —{" "}
+              {property.buildingRentRoll.unitRents.length} unit rents on file
+            </div>
+          )}
+        </section>
+
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold text-slate-800">ROI breakdown</h3>
+          <Row label="Annual rent (gross)" value={formatCurrency(roi.annualRent)} />
+          <Row label="Annual operating expenses" value={formatCurrency(roi.annualOperatingExpenses)} />
+          <Row label="Net operating income (NOI)" value={formatCurrency(roi.noi)} />
+          <Row label="Cap rate" value={formatPercent(roi.capRatePct)} />
+          <Row label="Gross rental yield" value={formatPercent(roi.grossYieldPct)} />
+          <Row label="Rent-to-price ratio" value={formatPercent(roi.rentToPricePct, 2)} />
+        </section>
+
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold text-slate-800">Financing</h3>
+          <Row label="Down payment" value={formatCurrency(roi.downPaymentAmount)} />
+          <Row label="Loan amount" value={formatCurrency(roi.loanAmount)} />
+          <Row label="Closing costs" value={formatCurrency(roi.closingCosts)} />
+          <Row label="Total cash invested" value={formatCurrency(roi.totalCashInvested)} />
+          <Row label="Monthly mortgage P&I" value={formatCurrency(roi.monthlyMortgagePI)} />
+          <Row label="Monthly cash flow" value={formatCurrency(roi.monthlyCashFlow)} />
+          <Row label="Annual cash flow" value={formatCurrency(roi.annualCashFlow)} />
+          <Row label="Cash-on-cash return" value={formatPercent(roi.cashOnCashPct)} />
+        </section>
+      </div>
+    </div>
+  );
+}
