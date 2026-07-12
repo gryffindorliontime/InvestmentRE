@@ -17,6 +17,16 @@ export const LISTING_STATUSES: ListingStatus[] = [
   "Recently Sold",
 ];
 
+// All 50 states + DC, shown in the State filter regardless of which states
+// currently have listings (a state with no listings just yields no results).
+export const US_STATES: string[] = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL",
+  "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME",
+  "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH",
+  "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+  "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+];
+
 export const DEFAULT_FILTERS: SearchFilters = {
   location: "",
   states: [],

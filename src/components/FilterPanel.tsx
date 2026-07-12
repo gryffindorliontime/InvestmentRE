@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { HOME_TYPES, LISTING_STATUSES } from "@/lib/constants";
+import { HOME_TYPES, LISTING_STATUSES, US_STATES } from "@/lib/constants";
 import type { HomeType, ListingStatus, SearchFilters } from "@/lib/types";
 
 interface FilterPanelProps {
@@ -9,7 +9,6 @@ interface FilterPanelProps {
   onChange: (filters: SearchFilters) => void;
   onReset: () => void;
   resultCount: number;
-  availableStates: string[];
 }
 
 function NumberField({
@@ -41,7 +40,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   return <h3 className="mt-4 mb-2 text-sm font-semibold text-slate-800">{children}</h3>;
 }
 
-export function FilterPanel({ filters, onChange, onReset, resultCount, availableStates }: FilterPanelProps) {
+export function FilterPanel({ filters, onChange, onReset, resultCount }: FilterPanelProps) {
   const [showMore, setShowMore] = useState(false);
   const [showInvestor, setShowInvestor] = useState(true);
 
@@ -102,7 +101,7 @@ export function FilterPanel({ filters, onChange, onReset, resultCount, available
         </button>
       )}
       <div className="grid max-h-40 grid-cols-2 gap-x-2 gap-y-1 overflow-y-auto rounded border border-slate-100 p-2">
-        {availableStates.map((state) => (
+        {US_STATES.map((state) => (
           <label key={state} className="flex items-center gap-1.5 text-sm text-slate-700">
             <input
               type="checkbox"
