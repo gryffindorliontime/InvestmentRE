@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AssumptionsPanel } from "@/components/AssumptionsPanel";
 import { FilterPanel } from "@/components/FilterPanel";
 import { LiveSearchBar } from "@/components/LiveSearchBar";
@@ -24,6 +24,10 @@ const PropertyMap = dynamic(() => import("@/components/PropertyMap").then((m) =>
 });
 
 type LiveEntry = { property: Property; rentEstimate: RentEstimate };
+
+// Region fetched automatically on page load (1 API call). If the call fails,
+// the dashboard falls back to mock data with an error banner.
+const DEFAULT_SEARCH_REGION = "Dallas, TX";
 
 export default function Home() {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
@@ -51,6 +55,17 @@ export default function Home() {
   const [rentOverrides, setRentOverrides] = useState<Record<string, RentEstimate>>({});
   const [fetchingCompsFor, setFetchingCompsFor] = useState<string | null>(null);
   const [fetchCompsError, setFetchCompsError] = useState<string | null>(null);
+
+  // Auto-load live listings for the default region on first mount. The ref
+  // guard keeps React StrictMode's double-effect in dev from burning a second
+  // API call.
+  const autoSearchFired = useRef(false);
+  useEffect(() => {
+    if (autoSearchFired.current) return;
+    autoSearchFired.current = true;
+    handleLiveSearch([DEFAULT_SEARCH_REGION]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const mockListings = useMemo(() => buildEnrichedListings(assumptions), [assumptions]);
   const liveListings = useMemo(
@@ -161,7 +176,9 @@ export default function Home() {
           <p className="text-xs text-slate-500">
             {dataSource === "live"
               ? "Showing live RentCast listings."
-              : "Running on mock listing data — search below to fetch live listings."}
+              : liveLoading
+                ? `Loading live listings for ${DEFAULT_SEARCH_REGION}…`
+                : "Showing mock listing data — search below to fetch live listings."}
           </p>
         </div>
       </header>
