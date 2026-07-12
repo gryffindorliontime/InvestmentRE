@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getZipBaselineRent } from "@/lib/mockData";
+import { getZipBaselineRent, perUnitBeds } from "@/lib/mockData";
 import { getRentEstimate } from "@/lib/rentcastClient";
 import type { HomeType } from "@/lib/types";
 
@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const zipBaseline = getZipBaselineRent(zip, beds ? Number(beds) : 0);
+    const bedsNum = beds ? Number(beds) : 0;
+    const unitCountNum = unitCount ? Number(unitCount) : 1;
+    const zipBaseline = getZipBaselineRent(zip, perUnitBeds({ beds: bedsNum, unitCount: unitCountNum }));
     const rentEstimate = await getRentEstimate(
       {
         address: `${address}, ${city}, ${state} ${zip}`,

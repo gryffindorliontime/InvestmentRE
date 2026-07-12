@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseLocationQuery } from "@/lib/locationParse";
-import { getZipBaselineRent } from "@/lib/mockData";
+import { getZipBaselineRent, perUnitBeds } from "@/lib/mockData";
 import { estimateRent } from "@/lib/rentEstimate";
 import { searchSaleListings } from "@/lib/rentcastClient";
 import type { HomeType } from "@/lib/types";
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     });
 
     const listings = properties.map((property) => {
-      const zipBaseline = getZipBaselineRent(property.zip, property.beds);
+      const zipBaseline = getZipBaselineRent(property.zip, perUnitBeds(property));
       const rentEstimate = estimateRent(property, [], zipBaseline);
       return { property, rentEstimate };
     });

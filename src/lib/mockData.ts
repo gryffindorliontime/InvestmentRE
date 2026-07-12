@@ -2,18 +2,130 @@
 // ever calling the RentCast API. Swap this out for src/lib/rentcastClient.ts
 // once live calls are turned on (see ENABLE_LIVE_API in .env.local).
 
-import type { Property, RentComp } from "./types";
+import type { HomeType, ListingStatus, Property, RentComp } from "./types";
+
+// Deterministic PRNG (mulberry32) so the generated dataset is stable across
+// reloads within a build, rather than reshuffling every time the module
+// loads. Seed is arbitrary — just needs to be fixed.
+function mulberry32(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface CityDef {
+  city: string;
+  state: string;
+  zip: string;
+  lat: number;
+  lng: number;
+  pricePerSqft: number; // rough median $/sqft for a single-family home
+  rentByBeds: Record<number, number>; // per-unit monthly rent baseline
+  taxRatePct: number; // rough effective annual property tax rate
+}
+
+function city(
+  name: string,
+  state: string,
+  zip: string,
+  lat: number,
+  lng: number,
+  pricePerSqft: number,
+  rent2br: number,
+  taxRatePct: number
+): CityDef {
+  return {
+    city: name,
+    state,
+    zip,
+    lat,
+    lng,
+    pricePerSqft,
+    rentByBeds: {
+      1: Math.round(rent2br * 0.75),
+      2: rent2br,
+      3: Math.round(rent2br * 1.25),
+      4: Math.round(rent2br * 1.5),
+      5: Math.round(rent2br * 1.75),
+    },
+    taxRatePct,
+  };
+}
+
+// Spread across every US region so the map view actually looks national.
+// Price/rent levels are rough approximations for demo purposes, not
+// authoritative market data.
+const CITIES: CityDef[] = [
+  city("Seattle", "WA", "98118", 47.548, -122.269, 420, 2400, 0.0092),
+  city("Portland", "OR", "97202", 45.484, -122.628, 340, 2000, 0.01),
+  city("San Francisco", "CA", "94112", 37.72, -122.442, 750, 3400, 0.0075),
+  city("Oakland", "CA", "94601", 37.774, -122.218, 520, 2600, 0.0075),
+  city("Los Angeles", "CA", "90011", 34.007, -118.258, 520, 2500, 0.0075),
+  city("San Diego", "CA", "92113", 32.699, -117.096, 480, 2400, 0.0075),
+  city("Sacramento", "CA", "95823", 38.482, -121.446, 270, 1800, 0.0085),
+  city("Fresno", "CA", "93706", 36.706, -119.793, 210, 1400, 0.0085),
+  city("Las Vegas", "NV", "89101", 36.175, -115.137, 250, 1600, 0.006),
+  city("Phoenix", "AZ", "85008", 33.449, -112.03, 260, 1650, 0.0065),
+  city("Tucson", "AZ", "85713", 32.191, -110.926, 190, 1350, 0.007),
+  city("Denver", "CO", "80219", 39.699, -105.019, 340, 2100, 0.0055),
+  city("Colorado Springs", "CO", "80910", 38.816, -104.76, 260, 1650, 0.005),
+  city("Salt Lake City", "UT", "84115", 40.723, -111.888, 300, 1750, 0.006),
+  city("Boise", "ID", "83705", 43.583, -116.243, 270, 1600, 0.006),
+  city("Albuquerque", "NM", "87105", 35.038, -106.647, 190, 1300, 0.0085),
+  city("Chicago", "IL", "60629", 41.776, -87.706, 220, 1900, 0.021),
+  city("Minneapolis", "MN", "55407", 44.925, -93.262, 270, 1800, 0.011),
+  city("Milwaukee", "WI", "53215", 43.007, -87.94, 160, 1350, 0.02),
+  city("Detroit", "MI", "48210", 42.339, -83.108, 90, 1100, 0.017),
+  city("Grand Rapids", "MI", "49507", 42.938, -85.66, 190, 1350, 0.015),
+  city("Indianapolis", "IN", "46201", 39.774, -86.135, 155, 1300, 0.0085),
+  city("Columbus", "OH", "43206", 39.938, -82.987, 175, 1400, 0.015),
+  city("Cleveland", "OH", "44109", 41.459, -81.699, 110, 1150, 0.016),
+  city("Cincinnati", "OH", "45204", 39.108, -84.567, 145, 1250, 0.014),
+  city("Kansas City", "MO", "64127", 39.089, -94.534, 160, 1300, 0.013),
+  city("St. Louis", "MO", "63111", 38.56, -90.264, 130, 1200, 0.012),
+  city("Omaha", "NE", "68107", 41.222, -95.958, 175, 1350, 0.017),
+  city("Des Moines", "IA", "50315", 41.564, -93.622, 165, 1300, 0.015),
+  city("Dallas", "TX", "75217", 32.716, -96.686, 210, 1600, 0.02),
+  city("Fort Worth", "TX", "76104", 32.736, -97.321, 185, 1500, 0.02),
+  city("Houston", "TX", "77033", 29.688, -95.348, 165, 1500, 0.021),
+  city("Austin", "TX", "78741", 30.23, -97.712, 320, 1900, 0.019),
+  city("San Antonio", "TX", "78211", 29.383, -98.549, 170, 1400, 0.019),
+  city("Oklahoma City", "OK", "73129", 35.408, -97.516, 140, 1200, 0.0095),
+  city("Tulsa", "OK", "74107", 36.121, -95.998, 130, 1150, 0.0095),
+  city("Little Rock", "AR", "72204", 34.719, -92.348, 140, 1150, 0.006),
+  city("Atlanta", "GA", "30310", 33.734, -84.417, 250, 1700, 0.009),
+  city("Nashville", "TN", "37115", 36.238, -86.706, 270, 1750, 0.0065),
+  city("Memphis", "TN", "38116", 35.037, -90.007, 130, 1150, 0.014),
+  city("Charlotte", "NC", "28208", 35.222, -80.883, 230, 1650, 0.0105),
+  city("Raleigh", "NC", "27610", 35.759, -78.591, 250, 1700, 0.0085),
+  city("Columbia", "SC", "29203", 34.07, -80.977, 165, 1300, 0.0055),
+  city("Jacksonville", "FL", "32209", 30.373, -81.687, 210, 1600, 0.009),
+  city("Tampa", "FL", "33605", 27.964, -82.43, 270, 1750, 0.0085),
+  city("Orlando", "FL", "32805", 28.531, -81.421, 260, 1700, 0.009),
+  city("Miami", "FL", "33142", 25.813, -80.238, 380, 2300, 0.01),
+  city("Birmingham", "AL", "35211", 33.484, -86.879, 130, 1100, 0.004),
+  city("New Orleans", "LA", "70126", 30.011, -89.986, 210, 1500, 0.0065),
+  city("New York", "NY", "11226", 40.646, -73.956, 520, 2600, 0.009),
+  city("Philadelphia", "PA", "19143", 39.947, -75.229, 165, 1550, 0.014),
+  city("Pittsburgh", "PA", "15210", 40.415, -79.986, 155, 1250, 0.0185),
+  city("Baltimore", "MD", "21215", 39.336, -76.673, 160, 1500, 0.0115),
+  city("Washington", "DC", "20019", 38.889, -76.941, 380, 2300, 0.0056),
+  city("Boston", "MA", "02125", 42.313, -71.057, 480, 2600, 0.01),
+  city("Providence", "RI", "02905", 41.789, -71.404, 270, 1750, 0.014),
+  city("Hartford", "CT", "06106", 41.752, -72.694, 190, 1450, 0.025),
+  city("Buffalo", "NY", "14211", 42.9, -78.826, 140, 1200, 0.022),
+];
 
 // Stand-in for HUD Fair Market Rent / Census ACS median rent by zip (PRD 6.1, tier 3).
 // Keyed by zip, valued per-bedroom-count monthly rent baseline.
-export const ZIP_BASELINE_RENTS: Record<string, Record<number, number>> = {
-  "75217": { 1: 950, 2: 1150, 3: 1450, 4: 1750, 5: 2050 }, // Dallas, TX
-  "76104": { 1: 900, 2: 1100, 3: 1350, 4: 1600, 5: 1900 }, // Fort Worth, TX
-  "76010": { 1: 980, 2: 1200, 3: 1500, 4: 1800, 5: 2100 }, // Arlington, TX
-  "85008": { 1: 1050, 2: 1300, 3: 1650, 4: 1950, 5: 2250 }, // Phoenix, AZ
-  "43206": { 1: 850, 2: 1050, 3: 1300, 4: 1550, 5: 1850 }, // Columbus, OH
-  "46201": { 1: 800, 2: 1000, 3: 1250, 4: 1500, 5: 1800 }, // Indianapolis, IN
-};
+export const ZIP_BASELINE_RENTS: Record<string, Record<number, number>> = Object.fromEntries(
+  CITIES.map((c) => [c.zip, c.rentByBeds])
+);
 
 function zipBaselineFor(zip: string, beds: number): number {
   const table = ZIP_BASELINE_RENTS[zip];
@@ -26,316 +138,189 @@ export function getZipBaselineRent(zip: string, beds: number): number {
   return zipBaselineFor(zip, beds);
 }
 
-export const MOCK_PROPERTIES: Property[] = [
-  {
-    id: "p1",
-    address: "4821 Maple Ridge Dr",
-    city: "Dallas",
-    state: "TX",
-    zip: "75217",
-    lat: 32.7157,
-    lng: -96.6858,
-    price: 285000,
-    homeType: "Single Family",
-    beds: 3,
-    baths: 2,
-    sqft: 1650,
-    lotSqft: 6500,
-    yearBuilt: 1998,
-    daysOnMarket: 14,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 173,
-    parkingSpots: 2,
-    hasBasement: false,
-    unitCount: 1,
-    annualPropertyTax: 5400,
-    keywords: ["updated kitchen", "fenced yard"],
-  },
-  {
-    id: "p2",
-    address: "112 Vickery Blvd",
-    city: "Fort Worth",
-    state: "TX",
-    zip: "76104",
-    lat: 32.7357,
-    lng: -97.3208,
-    price: 189000,
-    homeType: "Single Family",
-    beds: 2,
-    baths: 1,
-    sqft: 1080,
-    lotSqft: 5200,
-    yearBuilt: 1955,
-    daysOnMarket: 42,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 175,
-    parkingSpots: 1,
-    hasBasement: false,
-    unitCount: 1,
-    annualPropertyTax: 3600,
-    keywords: ["fixer-upper", "corner lot"],
-  },
-  {
-    id: "p3",
-    address: "2200 Handley Dr — 4-Plex",
-    city: "Fort Worth",
-    state: "TX",
-    zip: "76104",
-    lat: 32.741,
-    lng: -97.279,
-    price: 520000,
-    homeType: "Multi-Family (2-4 unit)",
-    beds: 8,
-    baths: 4,
-    sqft: 3600,
-    lotSqft: 9800,
-    yearBuilt: 1985,
-    daysOnMarket: 21,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 144,
-    parkingSpots: 4,
-    hasBasement: false,
-    unitCount: 4,
-    annualPropertyTax: 9800,
-    keywords: ["all units occupied", "separate meters"],
-    buildingRentRoll: {
-      buildingName: "Handley Fourplex",
-      unitRents: [1150, 1175, 1200, 1160],
-    },
-  },
-  {
-    id: "p4",
-    address: "980 Cooper St, Unit 3B",
-    city: "Arlington",
-    state: "TX",
-    zip: "76010",
-    lat: 32.7357,
-    lng: -97.1081,
-    price: 165000,
-    homeType: "Condo",
-    beds: 2,
-    baths: 2,
-    sqft: 1020,
-    lotSqft: 0,
-    yearBuilt: 2005,
-    daysOnMarket: 9,
-    status: "For Sale",
-    hoaMonthly: 275,
-    pricePerSqft: 162,
-    parkingSpots: 1,
-    hasBasement: false,
-    unitCount: 1,
-    annualPropertyTax: 3100,
-    keywords: ["pool", "gated community"],
-  },
-  {
-    id: "p5",
-    address: "7710 Broadway Blvd",
-    city: "Dallas",
-    state: "TX",
-    zip: "75217",
-    lat: 32.705,
-    lng: -96.67,
-    price: 349000,
-    homeType: "Townhouse",
-    beds: 3,
-    baths: 2.5,
-    sqft: 1780,
-    lotSqft: 2200,
-    yearBuilt: 2016,
-    daysOnMarket: 5,
-    status: "For Sale",
-    hoaMonthly: 180,
-    pricePerSqft: 196,
-    parkingSpots: 2,
-    hasBasement: false,
-    unitCount: 1,
-    annualPropertyTax: 6800,
-    keywords: ["new construction", "ADU potential"],
-  },
-  {
-    id: "p6",
-    address: "3390 E Van Buren St — 12-Unit",
-    city: "Phoenix",
-    state: "AZ",
-    zip: "85008",
-    lat: 33.449,
-    lng: -111.98,
-    price: 1450000,
-    homeType: "Multi-Family (5+ unit)",
-    beds: 24,
-    baths: 12,
-    sqft: 10800,
-    lotSqft: 18000,
-    yearBuilt: 1978,
-    daysOnMarket: 60,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 134,
-    parkingSpots: 12,
-    hasBasement: false,
-    unitCount: 12,
-    annualPropertyTax: 24500,
-    keywords: ["value-add", "below-market rents"],
-    buildingRentRoll: {
-      buildingName: "Van Buren Apartments",
-      unitRents: [1050, 1075, 1100, 1050, 1125, 1080, 1060, 1090, 1110, 1070, 1095, 1085],
-    },
-  },
-  {
-    id: "p7",
-    address: "1502 Sunset Ave",
-    city: "Columbus",
-    state: "OH",
-    zip: "43206",
-    lat: 39.938,
-    lng: -82.987,
-    price: 142000,
-    homeType: "Single Family",
-    beds: 3,
-    baths: 1,
-    sqft: 1250,
-    lotSqft: 4800,
-    yearBuilt: 1962,
-    daysOnMarket: 30,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 114,
-    parkingSpots: 1,
-    hasBasement: true,
-    unitCount: 1,
-    annualPropertyTax: 2600,
-    keywords: ["basement", "near campus"],
-  },
-  {
-    id: "p8",
-    address: "610 English Ave — Duplex",
-    city: "Indianapolis",
-    state: "IN",
-    zip: "46201",
-    lat: 39.774,
-    lng: -86.135,
-    price: 210000,
-    homeType: "Multi-Family (2-4 unit)",
-    beds: 4,
-    baths: 2,
-    sqft: 2100,
-    lotSqft: 6000,
-    yearBuilt: 1948,
-    daysOnMarket: 18,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 100,
-    parkingSpots: 2,
-    hasBasement: true,
-    unitCount: 2,
-    annualPropertyTax: 3400,
-    keywords: ["both units rented", "long-term tenants"],
-  },
-  {
-    id: "p9",
-    address: "88 Legacy Way",
-    city: "Fort Worth",
-    state: "TX",
-    zip: "76104",
-    lat: 32.73,
-    lng: -97.31,
-    price: 95000,
-    homeType: "Manufactured",
-    beds: 3,
-    baths: 2,
-    sqft: 1400,
-    lotSqft: 7200,
-    yearBuilt: 2001,
-    daysOnMarket: 55,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 68,
-    parkingSpots: 2,
-    hasBasement: false,
-    unitCount: 1,
-    annualPropertyTax: 1400,
-    keywords: ["owned land", "move-in ready"],
-  },
-  {
-    id: "p10",
-    address: "Lot 14, Prairie View Rd",
-    city: "Arlington",
-    state: "TX",
-    zip: "76010",
-    lat: 32.72,
-    lng: -97.1,
-    price: 65000,
-    homeType: "Land",
-    beds: 0,
-    baths: 0,
-    sqft: 0,
-    lotSqft: 21000,
-    yearBuilt: 0,
-    daysOnMarket: 90,
-    status: "For Sale",
-    hoaMonthly: 0,
-    pricePerSqft: 0,
-    parkingSpots: 0,
-    hasBasement: false,
-    unitCount: 0,
-    annualPropertyTax: 900,
-    keywords: ["buildable lot", "utilities at street"],
-  },
-  {
-    id: "p11",
-    address: "233 Marsalis Ave",
-    city: "Dallas",
-    state: "TX",
-    zip: "75217",
-    lat: 32.71,
-    lng: -96.77,
-    price: 235000,
-    homeType: "Single Family",
-    beds: 3,
-    baths: 2,
-    sqft: 1420,
-    lotSqft: 5800,
-    yearBuilt: 1975,
-    daysOnMarket: 11,
-    status: "Pending",
-    hoaMonthly: 0,
-    pricePerSqft: 165,
-    parkingSpots: 2,
-    hasBasement: false,
-    unitCount: 1,
-    annualPropertyTax: 4700,
-    keywords: ["renovated bathroom"],
-  },
-  {
-    id: "p12",
-    address: "77 Riverside Ct, Unit 5",
-    city: "Columbus",
-    state: "OH",
-    zip: "43206",
-    lat: 39.94,
-    lng: -83.0,
-    price: 118000,
-    homeType: "Condo",
-    beds: 1,
-    baths: 1,
-    sqft: 720,
-    lotSqft: 0,
-    yearBuilt: 2010,
-    daysOnMarket: 25,
-    status: "For Sale",
-    hoaMonthly: 210,
-    pricePerSqft: 164,
-    parkingSpots: 1,
-    hasBasement: false,
-    unitCount: 1,
-    annualPropertyTax: 2100,
-    keywords: ["walkable", "in-unit laundry"],
-  },
+// Property.beds is TOTAL beds across every unit for multi-family properties
+// (matches how listings data typically reports it), but a per-bedroom rent
+// baseline needs the beds in a *single* unit — otherwise an 18-unit building
+// with 18 total beds gets priced off the "5-bedroom" baseline (the highest
+// tier) for every one of its 1-bedroom units. Divide by unit count first.
+export function perUnitBeds(property: { beds: number; unitCount: number }): number {
+  return property.unitCount > 1 ? Math.max(1, Math.round(property.beds / property.unitCount)) : property.beds;
+}
+
+const HOME_TYPE_WEIGHTS: [HomeType, number][] = [
+  ["Single Family", 0.42],
+  ["Condo", 0.16],
+  ["Townhouse", 0.12],
+  ["Multi-Family (2-4 unit)", 0.14],
+  ["Multi-Family (5+ unit)", 0.06],
+  ["Manufactured", 0.06],
+  ["Land", 0.04],
 ];
+
+function weightedPick<T>(rand: () => number, weights: [T, number][]): T {
+  const r = rand();
+  let acc = 0;
+  for (const [item, w] of weights) {
+    acc += w;
+    if (r <= acc) return item;
+  }
+  return weights[weights.length - 1][0];
+}
+
+const STREET_NAMES = [
+  "Maple", "Oak", "Elm", "Cedar", "Pine", "Birch", "Willow", "Sunset", "Ridge",
+  "Prairie", "River", "Lake", "Highland", "Meadow", "Forest", "Spring", "Valley",
+  "Hill", "Park", "Garden", "Union", "Franklin", "Washington", "Lincoln",
+  "Jefferson", "Madison", "Monroe", "Adams", "Jackson", "Chestnut",
+];
+const STREET_SUFFIXES = ["St", "Ave", "Dr", "Blvd", "Ln", "Ct", "Rd", "Way", "Pl"];
+const KEYWORD_POOL = [
+  "updated kitchen", "fenced yard", "fixer-upper", "corner lot", "new roof",
+  "near transit", "pool", "gated community", "new construction", "ADU potential",
+  "basement", "near campus", "both units rented", "long-term tenants",
+  "owned land", "move-in ready", "buildable lot", "utilities at street",
+  "renovated bathroom", "walkable", "in-unit laundry", "hardwood floors",
+  "open floor plan", "large backyard", "solar panels", "smart home",
+  "recently painted", "new HVAC", "granite countertops", "stainless appliances",
+];
+
+function pickKeywords(rand: () => number): string[] {
+  const count = Math.floor(rand() * 3);
+  const picked = new Set<string>();
+  while (picked.size < count) {
+    picked.add(KEYWORD_POOL[Math.floor(rand() * KEYWORD_POOL.length)]);
+  }
+  return Array.from(picked);
+}
+
+function generateMockProperties(count: number): Property[] {
+  const rand = mulberry32(42);
+  const properties: Property[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const cityDef = CITIES[Math.floor(rand() * CITIES.length)];
+    const homeType = weightedPick(rand, HOME_TYPE_WEIGHTS);
+
+    const streetNum = 100 + Math.floor(rand() * 9899);
+    const streetName = STREET_NAMES[Math.floor(rand() * STREET_NAMES.length)];
+    const streetSuffix = STREET_SUFFIXES[Math.floor(rand() * STREET_SUFFIXES.length)];
+    const address = `${streetNum} ${streetName} ${streetSuffix}`;
+    const lat = cityDef.lat + (rand() - 0.5) * 0.12;
+    const lng = cityDef.lng + (rand() - 0.5) * 0.12;
+    const yearBuilt = 1930 + Math.floor(rand() * 94);
+    const daysOnMarket = rand() < 0.08 ? 200 + Math.floor(rand() * 400) : 1 + Math.floor(rand() * 120);
+    const statusRoll = rand();
+    const status: ListingStatus =
+      statusRoll < 0.82 ? "For Sale" : statusRoll < 0.92 ? "Pending" : statusRoll < 0.97 ? "Coming Soon" : "Recently Sold";
+    // Price varies independently of rent (which comes from the city's zip
+    // baseline at query time) — this is what produces a real spread of cap
+    // rates rather than every listing clustering around the same yield.
+    const dealFactor = 0.65 + rand() * 0.9;
+
+    let beds = 0;
+    let baths = 0;
+    let sqft = 0;
+    let lotSqft = 0;
+    let price = 0;
+    let unitCount = 1;
+    let hoaMonthly = 0;
+    let parkingSpots = 0;
+    let hasBasement = false;
+    let buildingRentRoll: Property["buildingRentRoll"];
+
+    if (homeType === "Land") {
+      lotSqft = 3000 + Math.floor(rand() * 40000);
+      price = Math.max(8000, Math.round(lotSqft * cityDef.pricePerSqft * 0.08 * dealFactor));
+      unitCount = 0;
+    } else if (homeType === "Multi-Family (2-4 unit)" || homeType === "Multi-Family (5+ unit)") {
+      unitCount = homeType === "Multi-Family (2-4 unit)" ? 2 + Math.floor(rand() * 3) : 5 + Math.floor(rand() * 20);
+      const bedsPerUnit = 1 + Math.floor(rand() * 2);
+      beds = unitCount * bedsPerUnit;
+      baths = unitCount;
+      const sqftPerUnit = 550 + bedsPerUnit * 250 + Math.floor(rand() * 200);
+      sqft = unitCount * sqftPerUnit;
+      lotSqft = unitCount * (1500 + Math.floor(rand() * 2000));
+      const pricePerSqft = cityDef.pricePerSqft * 0.85 * (0.85 + rand() * 0.3);
+      price = Math.max(120000, Math.round(sqft * pricePerSqft * dealFactor));
+      parkingSpots = unitCount;
+      hasBasement = rand() < 0.25;
+
+      if (rand() < 0.35) {
+        const perUnitBaseline = zipBaselineFor(cityDef.zip, bedsPerUnit);
+        buildingRentRoll = {
+          buildingName: `${streetName} ${homeType === "Multi-Family (2-4 unit)" ? "Fourplex" : "Apartments"}`,
+          unitRents: Array.from({ length: unitCount }, () =>
+            Math.round(perUnitBaseline * (0.85 + rand() * 0.3))
+          ),
+        };
+      }
+    } else {
+      // Single Family, Condo, Townhouse, Manufactured
+      beds = homeType === "Condo" ? 1 + Math.floor(rand() * 3) : 2 + Math.floor(rand() * 4);
+      baths = Math.max(1, beds - 1 - Math.floor(rand() * 2));
+      if (rand() < 0.35) baths += 0.5;
+      baths = Math.min(baths, beds);
+
+      const sqftPerBed =
+        homeType === "Condo" ? 450 + rand() * 200 :
+        homeType === "Manufactured" ? 350 + rand() * 150 :
+        homeType === "Townhouse" ? 500 + rand() * 200 :
+        500 + rand() * 250;
+      sqft = Math.round(beds * sqftPerBed);
+
+      lotSqft =
+        homeType === "Condo" ? 0 :
+        homeType === "Townhouse" ? 800 + Math.floor(rand() * 2500) :
+        homeType === "Manufactured" ? 3000 + Math.floor(rand() * 8000) :
+        3000 + Math.floor(rand() * 10000);
+
+      const typeMultiplier =
+        homeType === "Manufactured" ? 0.5 : homeType === "Condo" ? 0.9 : homeType === "Townhouse" ? 0.95 : 1.0;
+      const pricePerSqft = cityDef.pricePerSqft * typeMultiplier * (0.85 + rand() * 0.3);
+      price = Math.max(homeType === "Manufactured" ? 25000 : 60000, Math.round(sqft * pricePerSqft * dealFactor));
+
+      hoaMonthly =
+        homeType === "Condo" || homeType === "Townhouse"
+          ? Math.round(100 + rand() * 400)
+          : rand() < 0.1
+            ? Math.round(20 + rand() * 80)
+            : 0;
+      parkingSpots = homeType === "Condo" ? Math.floor(rand() * 2) : 1 + Math.floor(rand() * 2);
+      hasBasement = (homeType === "Single Family" || homeType === "Townhouse") && rand() < 0.35;
+    }
+
+    properties.push({
+      id: `mock-${i}`,
+      address,
+      city: cityDef.city,
+      state: cityDef.state,
+      zip: cityDef.zip,
+      lat,
+      lng,
+      price,
+      homeType,
+      beds,
+      baths,
+      sqft,
+      lotSqft,
+      yearBuilt: homeType === "Land" ? 0 : yearBuilt,
+      daysOnMarket,
+      status,
+      hoaMonthly,
+      pricePerSqft: sqft > 0 ? Math.round(price / sqft) : 0,
+      parkingSpots,
+      hasBasement,
+      unitCount,
+      annualPropertyTax: Math.round(price * cityDef.taxRatePct),
+      keywords: pickKeywords(rand),
+      buildingRentRoll,
+    });
+  }
+
+  return properties;
+}
+
+export const MOCK_PROPERTIES: Property[] = generateMockProperties(1000);
 
 // Deterministic pseudo-random comps generator keyed off the property id, so
 // the same property always shows the same comp set during a session.
@@ -355,7 +340,7 @@ export function getCompsForProperty(property: Property): RentComp[] {
   if (property.homeType === "Land") return [];
 
   const rand = seededRandom(property.id);
-  const baseline = zipBaselineFor(property.zip, property.beds);
+  const baseline = zipBaselineFor(property.zip, perUnitBeds(property));
   // Vary comp count so filters/confidence badges show a realistic mix: some
   // properties land in the "sparse comps -> zip baseline fallback" tier.
   const compCount = Math.floor(rand() * 10); // 0-9
