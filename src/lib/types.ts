@@ -96,7 +96,13 @@ export interface ROIResult {
   downPaymentAmount: number;
   closingCosts: number;
   totalCashInvested: number;
+  loanToValuePct: number;
   monthlyMortgagePI: number;
+  // First payment's split — the interest/principal mix shifts every month,
+  // this is just the starting point (most front-loaded toward interest).
+  firstMonthInterest: number;
+  firstMonthPrincipal: number;
+  totalInterestOverLoanTerm: number;
   monthlyCashFlow: number;
   annualCashFlow: number;
   cashOnCashPct: number;

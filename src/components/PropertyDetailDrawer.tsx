@@ -162,11 +162,25 @@ export function PropertyDetailDrawer({
           <h3 className="text-sm font-semibold text-slate-800">Financing</h3>
           <Row label="Down payment" value={formatCurrency(roi.downPaymentAmount)} />
           <Row label="Loan amount" value={formatCurrency(roi.loanAmount)} />
+          <Row label="Loan-to-value" value={formatPercent(roi.loanToValuePct)} />
           <Row label="Closing costs" value={formatCurrency(roi.closingCosts)} />
           <Row label="Total cash invested" value={formatCurrency(roi.totalCashInvested)} />
-          <Row label="Monthly mortgage P&I" value={formatCurrency(roi.monthlyMortgagePI)} />
-          <Row label="Monthly cash flow" value={formatCurrency(roi.monthlyCashFlow)} />
-          <Row label="Annual cash flow" value={formatCurrency(roi.annualCashFlow)} />
+        </section>
+
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold text-slate-800">Mortgage payment</h3>
+          <Row label="Monthly payment (P&I)" value={formatCurrency(roi.monthlyMortgagePI)} />
+          <Row label="— of which interest (1st mo.)" value={formatCurrency(roi.firstMonthInterest)} />
+          <Row label="— of which principal (1st mo.)" value={formatCurrency(roi.firstMonthPrincipal)} />
+          <Row label="Total interest over loan term" value={formatCurrency(roi.totalInterestOverLoanTerm)} />
+        </section>
+
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold text-slate-800">Rent profit (cash flow)</h3>
+          <Row label="Net operating income (NOI)" value={formatCurrency(roi.noi)} />
+          <Row label="− Mortgage payment (annual)" value={formatCurrency(roi.monthlyMortgagePI * 12)} />
+          <Row label="= Annual cash flow" value={formatCurrency(roi.annualCashFlow)} />
+          <Row label="= Monthly cash flow" value={formatCurrency(roi.monthlyCashFlow)} />
           <Row label="Cash-on-cash return" value={formatPercent(roi.cashOnCashPct)} />
         </section>
       </div>

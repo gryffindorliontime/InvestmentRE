@@ -64,6 +64,12 @@ export function computeROI(
   const monthlyCashFlow = annualCashFlow / 12;
   const cashOnCashPct = totalCashInvested > 0 ? (annualCashFlow / totalCashInvested) * 100 : 0;
 
+  const loanToValuePct = property.price > 0 ? (loanAmount / property.price) * 100 : 0;
+  const monthlyRate = assumptions.interestRatePct / 12;
+  const firstMonthInterest = loanAmount * monthlyRate;
+  const firstMonthPrincipal = monthlyMortgagePI - firstMonthInterest;
+  const totalInterestOverLoanTerm = monthlyMortgagePI * assumptions.loanTermYears * 12 - loanAmount;
+
   return {
     monthlyRent,
     annualRent,
@@ -76,7 +82,11 @@ export function computeROI(
     downPaymentAmount,
     closingCosts,
     totalCashInvested,
+    loanToValuePct,
     monthlyMortgagePI,
+    firstMonthInterest,
+    firstMonthPrincipal,
+    totalInterestOverLoanTerm,
     monthlyCashFlow,
     annualCashFlow,
     cashOnCashPct,
