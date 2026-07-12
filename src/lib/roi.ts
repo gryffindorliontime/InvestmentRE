@@ -10,6 +10,8 @@ export const DEFAULT_ASSUMPTIONS: FinancingAssumptions = {
   propertyMgmtPct: 0.08,
   annualInsuranceEstimate: 1800,
   propertyTaxPct: 0.012,
+  rentGrowthPct: 0.03,
+  sellingCostsPct: 0.06,
 };
 
 function monthlyMortgagePayment(loanAmount: number, annualRatePct: number, termYears: number): number {

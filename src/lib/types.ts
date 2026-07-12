@@ -86,6 +86,8 @@ export interface FinancingAssumptions {
   propertyMgmtPct: number; // e.g. 0.08, applied to gross rent (0 to disable)
   annualInsuranceEstimate: number; // flat $/yr, editable
   propertyTaxPct: number; // e.g. 0.012, used as a fallback when property.annualPropertyTax is unknown (live listings)
+  rentGrowthPct: number; // e.g. 0.03, annual rent/NOI growth used in multi-year projections
+  sellingCostsPct: number; // e.g. 0.06, agent commission + closing costs on the eventual sale
 }
 
 export interface ROIResult {

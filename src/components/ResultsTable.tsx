@@ -12,6 +12,9 @@ interface ResultsTableProps {
   onSortChange: (sort: SortState) => void;
   onSelect: (listing: EnrichedListing) => void;
   selectedId: string | null;
+  compareIds: string[];
+  onToggleCompare: (id: string) => void;
+  compareLimitReached: boolean;
 }
 
 const COLUMNS: { key: SortKey; label: string }[] = [
@@ -28,7 +31,16 @@ function cashFlowColor(value: number): string {
   return value >= 0 ? "text-emerald-700" : "text-rose-700";
 }
 
-export function ResultsTable({ listings, sort, onSortChange, onSelect, selectedId }: ResultsTableProps) {
+export function ResultsTable({
+  listings,
+  sort,
+  onSortChange,
+  onSelect,
+  selectedId,
+  compareIds,
+  onToggleCompare,
+  compareLimitReached,
+}: ResultsTableProps) {
   function handleSort(key: SortKey) {
     if (sort.key === key) {
       onSortChange({ key, direction: sort.direction === "asc" ? "desc" : "asc" });
@@ -50,6 +62,9 @@ export function ResultsTable({ listings, sort, onSortChange, onSelect, selectedI
       <table className="w-full border-collapse text-sm">
         <thead className="sticky top-0 bg-white shadow-sm">
           <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+            <th className="px-2 py-2 font-medium" title="Select up to 4 to compare">
+              ⇄
+            </th>
             <th className="px-3 py-2 font-medium">Property</th>
             {COLUMNS.map((col) => (
               <th
@@ -71,6 +86,15 @@ export function ResultsTable({ listings, sort, onSortChange, onSelect, selectedI
                 selectedId === property.id ? "bg-blue-50" : ""
               }`}
             >
+              <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={compareIds.includes(property.id)}
+                  disabled={compareLimitReached && !compareIds.includes(property.id)}
+                  onChange={() => onToggleCompare(property.id)}
+                  title="Compare"
+                />
+              </td>
               <td className="px-3 py-2">
                 <div className="font-medium text-slate-900">{property.address}</div>
                 <div className="text-xs text-slate-500">

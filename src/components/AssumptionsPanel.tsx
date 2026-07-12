@@ -157,6 +157,16 @@ export function AssumptionsPanel({ assumptions, onChange, onReset }: Assumptions
             value={assumptions.propertyTaxPct}
             onChange={(v) => update("propertyTaxPct", v)}
           />
+          <PctField
+            label="Rent growth / yr"
+            value={assumptions.rentGrowthPct}
+            onChange={(v) => update("rentGrowthPct", v)}
+          />
+          <PctField
+            label="Selling costs"
+            value={assumptions.sellingCostsPct}
+            onChange={(v) => update("sellingCostsPct", v)}
+          />
         </div>
       )}
     </div>

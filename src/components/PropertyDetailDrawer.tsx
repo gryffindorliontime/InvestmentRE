@@ -3,10 +3,13 @@
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { buildRealtorSearchUrl, buildZillowSearchUrl } from "@/lib/externalLinks";
 import { formatCurrency, formatPercent } from "@/lib/format";
+import { buildProjection } from "@/lib/projection";
 import type { EnrichedListing } from "@/lib/searchEngine";
+import type { FinancingAssumptions } from "@/lib/types";
 
 interface PropertyDetailDrawerProps {
   listing: EnrichedListing | null;
+  assumptions: FinancingAssumptions;
   onClose: () => void;
   onFetchLiveComps: (listing: EnrichedListing) => void;
   fetchingLiveComps: boolean;
@@ -24,6 +27,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export function PropertyDetailDrawer({
   listing,
+  assumptions,
   onClose,
   onFetchLiveComps,
   fetchingLiveComps,
@@ -32,6 +36,10 @@ export function PropertyDetailDrawer({
   if (!listing) return null;
   const { property, rentEstimate, roi } = listing;
   const canUpgradeToLiveComps = property.source === "rentcast" && rentEstimate.method !== "comps";
+  const projection = property.homeType === "Land" ? null : buildProjection(property, roi, assumptions);
+  const projectionRows = projection
+    ? projection.years.filter((y) => [1, 3, 5, 10].includes(y.year))
+    : [];
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end bg-black/30" onClick={onClose}>
@@ -189,6 +197,65 @@ export function PropertyDetailDrawer({
           <Row label="= Monthly cash flow" value={formatCurrency(roi.monthlyCashFlow)} />
           <Row label="Cash-on-cash return" value={formatPercent(roi.cashOnCashPct)} />
         </section>
+
+        {projection && (
+          <section className="mt-4">
+            <h3 className="text-sm font-semibold text-slate-800">10-year projection</h3>
+            <Row
+              label={`Appreciation — ${property.state} regional`}
+              value={formatPercent(projection.appreciation.regionalPct * 100)}
+            />
+            <Row
+              label={`Appreciation — ${property.homeType}`}
+              value={formatPercent(projection.appreciation.homeTypePct * 100)}
+            />
+            <Row
+              label="Blended rate (70% region / 30% style)"
+              value={`${formatPercent(projection.appreciation.blendedPct * 100)}/yr`}
+            />
+            <div className="mt-2 overflow-x-auto rounded border border-slate-100">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-2 py-1 text-left">Year</th>
+                    <th className="px-2 py-1 text-right">Value</th>
+                    <th className="px-2 py-1 text-right">Equity</th>
+                    <th className="px-2 py-1 text-right">Cash flow/yr</th>
+                    <th className="px-2 py-1 text-right">Profit if sold</th>
+                    <th className="px-2 py-1 text-right">IRR if sold</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectionRows.map((y) => (
+                    <tr key={y.year} className="border-t border-slate-100">
+                      <td className="px-2 py-1">{y.year}</td>
+                      <td className="px-2 py-1 text-right">{formatCurrency(y.propertyValue)}</td>
+                      <td className="px-2 py-1 text-right">{formatCurrency(y.equity)}</td>
+                      <td
+                        className={`px-2 py-1 text-right ${y.annualCashFlow >= 0 ? "text-emerald-700" : "text-rose-700"}`}
+                      >
+                        {formatCurrency(y.annualCashFlow)}
+                      </td>
+                      <td
+                        className={`px-2 py-1 text-right ${y.totalProfitIfSold >= 0 ? "text-emerald-700" : "text-rose-700"}`}
+                      >
+                        {formatCurrency(y.totalProfitIfSold)}
+                      </td>
+                      <td className="px-2 py-1 text-right font-medium">
+                        {y.irrIfSoldPct === null ? "—" : formatPercent(y.irrIfSoldPct)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">
+              NOI grown at {formatPercent(assumptions.rentGrowthPct * 100)}/yr; sale nets out{" "}
+              {formatPercent(assumptions.sellingCostsPct * 100)} selling costs and the remaining loan
+              balance. Demo appreciation assumptions — not a forecast.
+            </p>
+          </section>
+        )}
       </div>
     </div>
   );
