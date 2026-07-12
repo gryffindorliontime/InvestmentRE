@@ -85,7 +85,8 @@ export interface FinancingAssumptions {
   maintenanceCapexPct: number; // e.g. 0.10, applied to gross rent
   propertyMgmtPct: number; // e.g. 0.08, applied to gross rent (0 to disable)
   annualInsuranceEstimate: number; // flat $/yr, editable
-  propertyTaxPct: number; // e.g. 0.012, used as a fallback when property.annualPropertyTax is unknown (live listings)
+  // (Property tax is not an assumption: it comes from the listing when
+  // reported, otherwise it's estimated per city/state in lib/propertyTax.ts.)
   rentGrowthPct: number; // e.g. 0.03, annual rent/NOI growth used in multi-year projections
   sellingCostsPct: number; // e.g. 0.06, agent commission + closing costs on the eventual sale
 }
@@ -93,6 +94,7 @@ export interface FinancingAssumptions {
 export interface ROIResult {
   monthlyRent: number;
   annualRent: number;
+  annualPropertyTax: number; // actual from listing, or city/state estimate
   annualOperatingExpenses: number;
   noi: number; // net operating income (annual)
   capRatePct: number;

@@ -1,3 +1,4 @@
+import { estimateAnnualPropertyTax } from "./propertyTax";
 import type { FinancingAssumptions, Property, ROIResult } from "./types";
 
 export const DEFAULT_ASSUMPTIONS: FinancingAssumptions = {
@@ -9,7 +10,6 @@ export const DEFAULT_ASSUMPTIONS: FinancingAssumptions = {
   maintenanceCapexPct: 0.1,
   propertyMgmtPct: 0.08,
   annualInsuranceEstimate: 1800,
-  propertyTaxPct: 0.012,
   rentGrowthPct: 0.03,
   sellingCostsPct: 0.06,
 };
@@ -40,7 +40,7 @@ export function computeROI(
   const vacancyLoss = annualRent * assumptions.vacancyPct;
   const maintenanceCapex = annualRent * assumptions.maintenanceCapexPct;
   const propertyMgmt = annualRent * assumptions.propertyMgmtPct;
-  const annualPropertyTax = property.annualPropertyTax ?? property.price * assumptions.propertyTaxPct;
+  const annualPropertyTax = estimateAnnualPropertyTax(property);
   const annualOperatingExpenses =
     annualPropertyTax +
     assumptions.annualInsuranceEstimate +
@@ -89,6 +89,7 @@ export function computeROI(
   return {
     monthlyRent,
     annualRent,
+    annualPropertyTax,
     annualOperatingExpenses,
     noi,
     capRatePct,

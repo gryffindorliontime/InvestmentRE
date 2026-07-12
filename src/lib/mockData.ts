@@ -127,6 +127,13 @@ export const ZIP_BASELINE_RENTS: Record<string, Record<number, number>> = Object
   CITIES.map((c) => [c.zip, c.rentByBeds])
 );
 
+// City-level effective property tax rates, keyed "City|ST". Consumed by
+// lib/propertyTax.ts, which falls back to state averages for cities not in
+// this metro table.
+export const CITY_TAX_RATES: Record<string, number> = Object.fromEntries(
+  CITIES.map((c) => [`${c.city}|${c.state}`, c.taxRatePct])
+);
+
 function zipBaselineFor(zip: string, beds: number): number {
   const table = ZIP_BASELINE_RENTS[zip];
   if (!table) return 1200;

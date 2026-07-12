@@ -4,6 +4,7 @@ import { ConfidenceBadge } from "./ConfidenceBadge";
 import { buildRealtorSearchUrl, buildZillowSearchUrl } from "@/lib/externalLinks";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { buildProjection } from "@/lib/projection";
+import { getLocalTaxRate } from "@/lib/propertyTax";
 import type { EnrichedListing } from "@/lib/searchEngine";
 import type { FinancingAssumptions } from "@/lib/types";
 
@@ -40,6 +41,7 @@ export function PropertyDetailDrawer({
   const projectionRows = projection
     ? projection.years.filter((y) => [1, 3, 5, 10].includes(y.year))
     : [];
+  const taxRate = getLocalTaxRate(property.city, property.state);
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end bg-black/30" onClick={onClose}>
@@ -165,6 +167,14 @@ export function PropertyDetailDrawer({
         <section className="mt-4">
           <h3 className="text-sm font-semibold text-slate-800">ROI breakdown</h3>
           <Row label="Annual rent (gross)" value={formatCurrency(roi.annualRent)} />
+          <Row
+            label={`Property tax (${
+              property.annualPropertyTax !== undefined
+                ? "from listing"
+                : `est. — ${taxRate.source === "city" ? property.city : taxRate.source === "state" ? property.state : "default"} rate ${formatPercent(taxRate.rate * 100, 2)}`
+            })`}
+            value={`${formatCurrency(roi.annualPropertyTax)}/yr`}
+          />
           <Row label="Annual operating expenses" value={formatCurrency(roi.annualOperatingExpenses)} />
           <Row label="Net operating income (NOI)" value={formatCurrency(roi.noi)} />
           <Row label="Cap rate" value={formatPercent(roi.capRatePct)} />
