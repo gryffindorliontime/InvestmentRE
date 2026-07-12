@@ -9,6 +9,7 @@ interface FilterPanelProps {
   onChange: (filters: SearchFilters) => void;
   onReset: () => void;
   resultCount: number;
+  availableStates: string[];
 }
 
 function NumberField({
@@ -40,12 +41,19 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   return <h3 className="mt-4 mb-2 text-sm font-semibold text-slate-800">{children}</h3>;
 }
 
-export function FilterPanel({ filters, onChange, onReset, resultCount }: FilterPanelProps) {
+export function FilterPanel({ filters, onChange, onReset, resultCount, availableStates }: FilterPanelProps) {
   const [showMore, setShowMore] = useState(false);
   const [showInvestor, setShowInvestor] = useState(true);
 
   function update<K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) {
     onChange({ ...filters, [key]: value });
+  }
+
+  function toggleState(state: string) {
+    const next = filters.states.includes(state)
+      ? filters.states.filter((s) => s !== state)
+      : [...filters.states, state];
+    update("states", next);
   }
 
   function toggleHomeType(type: HomeType) {
@@ -83,6 +91,28 @@ export function FilterPanel({ filters, onChange, onReset, resultCount }: FilterP
         placeholder="City, zip, or metro"
         className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
       />
+
+      <SectionHeading>State</SectionHeading>
+      {filters.states.length > 0 && (
+        <button
+          onClick={() => update("states", [])}
+          className="mb-1 text-xs font-medium text-blue-600 hover:underline"
+        >
+          Clear ({filters.states.length} selected)
+        </button>
+      )}
+      <div className="grid max-h-40 grid-cols-2 gap-x-2 gap-y-1 overflow-y-auto rounded border border-slate-100 p-2">
+        {availableStates.map((state) => (
+          <label key={state} className="flex items-center gap-1.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={filters.states.includes(state)}
+              onChange={() => toggleState(state)}
+            />
+            {state}
+          </label>
+        ))}
+      </div>
 
       <SectionHeading>Price range</SectionHeading>
       <div className="grid grid-cols-2 gap-2">

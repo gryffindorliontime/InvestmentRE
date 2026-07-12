@@ -50,6 +50,10 @@ export default function Home() {
     [liveEntries, assumptions, rentOverrides]
   );
   const allListings = dataSource === "live" ? liveListings : mockListings;
+  const availableStates = useMemo(
+    () => Array.from(new Set(allListings.map((l) => l.property.state))).sort(),
+    [allListings]
+  );
 
   const filtered = useMemo(() => applyFilters(allListings, filters), [allListings, filters]);
   const sorted = useMemo(() => sortListings(filtered, sort), [filtered, sort]);
@@ -174,6 +178,7 @@ export default function Home() {
           onChange={setFilters}
           onReset={() => setFilters(DEFAULT_FILTERS)}
           resultCount={sorted.length}
+          availableStates={availableStates}
         />
 
         <div className="flex flex-1 flex-col overflow-hidden">

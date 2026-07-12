@@ -124,6 +124,7 @@ export interface RangeFilter {
 
 export interface SearchFilters {
   location: string; // free text: city, zip, or metro
+  states: string[]; // 2-letter state codes, e.g. "TX" — empty means all states
   price: PriceRange;
   homeTypes: HomeType[];
   bedsMin: number | null;

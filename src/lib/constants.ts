@@ -19,6 +19,7 @@ export const LISTING_STATUSES: ListingStatus[] = [
 
 export const DEFAULT_FILTERS: SearchFilters = {
   location: "",
+  states: [],
   price: { min: null, max: null },
   homeTypes: [],
   bedsMin: null,

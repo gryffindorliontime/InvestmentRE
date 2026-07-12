@@ -59,6 +59,8 @@ export function applyFilters(listings: EnrichedListing[], filters: SearchFilters
       if (!haystack.includes(locationQuery)) return false;
     }
 
+    if (filters.states.length > 0 && !filters.states.includes(property.state)) return false;
+
     if (!matchesRange(property.price, filters.price.min, filters.price.max)) return false;
 
     if (filters.homeTypes.length > 0 && !filters.homeTypes.includes(property.homeType)) return false;
