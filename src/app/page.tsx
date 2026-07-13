@@ -93,18 +93,18 @@ export default function Home() {
         </div>
       </header>
 
-      <AssumptionsPanel
-        assumptions={assumptions}
-        onChange={setAssumptions}
-        onReset={() => setAssumptions(DEFAULT_ASSUMPTIONS)}
+      <FilterPanel
+        filters={filters}
+        onChange={setFilters}
+        onReset={() => setFilters(DEFAULT_FILTERS)}
+        resultCount={sorted.length}
       />
 
       <div className="flex flex-1 overflow-hidden">
-        <FilterPanel
-          filters={filters}
-          onChange={setFilters}
-          onReset={() => setFilters(DEFAULT_FILTERS)}
-          resultCount={sorted.length}
+        <AssumptionsPanel
+          assumptions={assumptions}
+          onChange={setAssumptions}
+          onReset={() => setAssumptions(DEFAULT_ASSUMPTIONS)}
         />
 
         <div className="flex flex-1 flex-col overflow-hidden">

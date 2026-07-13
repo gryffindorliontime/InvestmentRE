@@ -91,79 +91,71 @@ function DollarField({
 }
 
 export function AssumptionsPanel({ assumptions, onChange, onReset }: AssumptionsPanelProps) {
-  const [open, setOpen] = useState(true);
-
   function update<K extends keyof FinancingAssumptions>(key: K, value: FinancingAssumptions[K]) {
     onChange({ ...assumptions, [key]: value });
   }
 
   return (
-    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+    <aside className="w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between">
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="text-sm font-semibold text-slate-800"
-        >
-          Financing &amp; expense assumptions {open ? "▾" : "▸"}
-        </button>
+        <h2 className="text-sm font-bold text-slate-900">Financing &amp; expenses</h2>
         <button onClick={onReset} className="text-xs font-medium text-blue-600 hover:underline">
-          Reset to defaults
+          Reset
         </button>
       </div>
-      {open && (
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-          <PctField
-            label="Down payment"
-            value={assumptions.downPaymentPct}
-            onChange={(v) => update("downPaymentPct", v)}
-          />
-          <PctField
-            label="Interest rate"
-            value={assumptions.interestRatePct}
-            onChange={(v) => update("interestRatePct", v)}
-          />
-          <DollarField
-            label="Loan term (yrs)"
-            value={assumptions.loanTermYears}
-            onChange={(v) => update("loanTermYears", v)}
-          />
-          <PctField
-            label="Closing costs"
-            value={assumptions.closingCostsPct}
-            onChange={(v) => update("closingCostsPct", v)}
-          />
-          <PctField
-            label="Vacancy"
-            value={assumptions.vacancyPct}
-            onChange={(v) => update("vacancyPct", v)}
-          />
-          <PctField
-            label="Maintenance/capex"
-            value={assumptions.maintenanceCapexPct}
-            onChange={(v) => update("maintenanceCapexPct", v)}
-          />
-          <PctField
-            label="Property mgmt fee"
-            value={assumptions.propertyMgmtPct}
-            onChange={(v) => update("propertyMgmtPct", v)}
-          />
-          <DollarField
-            label="Annual insurance ($)"
-            value={assumptions.annualInsuranceEstimate}
-            onChange={(v) => update("annualInsuranceEstimate", v)}
-          />
-          <PctField
-            label="Rent growth / yr"
-            value={assumptions.rentGrowthPct}
-            onChange={(v) => update("rentGrowthPct", v)}
-          />
-          <PctField
-            label="Selling costs"
-            value={assumptions.sellingCostsPct}
-            onChange={(v) => update("sellingCostsPct", v)}
-          />
-        </div>
-      )}
-    </div>
+
+      <div className="mt-3 flex flex-col gap-3">
+        <PctField
+          label="Down payment"
+          value={assumptions.downPaymentPct}
+          onChange={(v) => update("downPaymentPct", v)}
+        />
+        <PctField
+          label="Interest rate"
+          value={assumptions.interestRatePct}
+          onChange={(v) => update("interestRatePct", v)}
+        />
+        <DollarField
+          label="Loan term (yrs)"
+          value={assumptions.loanTermYears}
+          onChange={(v) => update("loanTermYears", v)}
+        />
+        <PctField
+          label="Closing costs"
+          value={assumptions.closingCostsPct}
+          onChange={(v) => update("closingCostsPct", v)}
+        />
+        <PctField
+          label="Vacancy"
+          value={assumptions.vacancyPct}
+          onChange={(v) => update("vacancyPct", v)}
+        />
+        <PctField
+          label="Maintenance/capex"
+          value={assumptions.maintenanceCapexPct}
+          onChange={(v) => update("maintenanceCapexPct", v)}
+        />
+        <PctField
+          label="Property mgmt fee"
+          value={assumptions.propertyMgmtPct}
+          onChange={(v) => update("propertyMgmtPct", v)}
+        />
+        <DollarField
+          label="Annual insurance ($)"
+          value={assumptions.annualInsuranceEstimate}
+          onChange={(v) => update("annualInsuranceEstimate", v)}
+        />
+        <PctField
+          label="Rent growth / yr"
+          value={assumptions.rentGrowthPct}
+          onChange={(v) => update("rentGrowthPct", v)}
+        />
+        <PctField
+          label="Selling costs"
+          value={assumptions.sellingCostsPct}
+          onChange={(v) => update("sellingCostsPct", v)}
+        />
+      </div>
+    </aside>
   );
 }
