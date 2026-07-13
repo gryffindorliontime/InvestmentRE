@@ -1,5 +1,6 @@
 "use client";
 
+import { buildRealtorSearchUrl, buildZillowSearchUrl } from "@/lib/externalLinks";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { buildProjection } from "@/lib/projection";
 import type { EnrichedListing } from "@/lib/searchEngine";
@@ -79,12 +80,30 @@ export function CompareModal({ listings, assumptions, onClose, onRemove }: Compa
                   <div className="text-xs font-normal text-slate-500">
                     {l.property.city}, {l.property.state} · {l.property.homeType}
                   </div>
-                  <button
-                    onClick={() => onRemove(l.property.id)}
-                    className="mt-1 text-xs font-medium text-rose-600 hover:underline"
-                  >
-                    Remove
-                  </button>
+                  <div className="mt-1 flex gap-2 text-xs font-normal">
+                    <a
+                      href={buildZillowSearchUrl(l.property)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Zillow ↗
+                    </a>
+                    <a
+                      href={buildRealtorSearchUrl(l.property)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Realtor.com ↗
+                    </a>
+                    <button
+                      onClick={() => onRemove(l.property.id)}
+                      className="font-medium text-rose-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </th>
               ))}
             </tr>
