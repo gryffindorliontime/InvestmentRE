@@ -62,6 +62,7 @@ export default function Home() {
   const [rentOverrides, setRentOverrides] = useState<Record<string, RentEstimate>>({});
   const [fetchingCompsFor, setFetchingCompsFor] = useState<string | null>(null);
   const [fetchCompsError, setFetchCompsError] = useState<string | null>(null);
+  const [avmProgress, setAvmProgress] = useState<{ done: number; total: number } | null>(null);
   const [taxOverrides, setTaxOverrides] = useState<Record<string, PropertyTaxRecord>>({});
   const [fetchingTaxFor, setFetchingTaxFor] = useState<string | null>(null);
   const [fetchTaxError, setFetchTaxError] = useState<string | null>(null);
@@ -267,6 +268,62 @@ export default function Home() {
     }
   }
 
+  // Bulk-upgrade the rents in the current (filtered, sorted) view to
+  // RentCast AVM estimates — 1 API call per listing, so it's an explicit
+  // button with the cost on the label, capped per click, top of the sort
+  // order first. Narrowing filters before clicking narrows the spend.
+  const AVM_BATCH_LIMIT = 50;
+  const avmCandidates = useMemo(
+    () =>
+      dataSource === "live"
+        ? sorted.filter((l) => l.property.source === "rentcast" && l.rentEstimate.method !== "comps")
+        : [],
+    [dataSource, sorted]
+  );
+
+  async function handleLoadAvmRents() {
+    const batch = avmCandidates.slice(0, AVM_BATCH_LIMIT);
+    if (batch.length === 0 || avmProgress) return;
+    setAvmProgress({ done: 0, total: batch.length });
+
+    let done = 0;
+    const queue = [...batch];
+    await Promise.all(
+      Array.from({ length: 4 }, async () => {
+        for (;;) {
+          const listing = queue.shift();
+          if (!listing) return;
+          const { property } = listing;
+          try {
+            const qs = new URLSearchParams({
+              address: property.address,
+              city: property.city,
+              state: property.state,
+              zip: property.zip,
+              homeType: property.homeType,
+              beds: String(property.beds),
+              baths: String(property.baths),
+              sqft: String(property.sqft),
+              unitCount: String(property.unitCount),
+            });
+            const res = await fetch(`/api/rent-estimate?${qs.toString()}`);
+            const data = await res.json();
+            if (res.ok) {
+              rentAutoFetched.current.add(property.id);
+              setRentOverrides((prev) => ({ ...prev, [property.id]: data.rentEstimate }));
+            }
+          } catch {
+            // Leave this listing on its baseline; the drawer offers a retry.
+          } finally {
+            done += 1;
+            setAvmProgress({ done, total: batch.length });
+          }
+        }
+      })
+    );
+    setAvmProgress(null);
+  }
+
   async function handleFetchTaxRecord(listing: EnrichedListing) {
     setFetchingTaxFor(listing.property.id);
     setFetchTaxError(null);
@@ -378,6 +435,20 @@ export default function Home() {
               Map
             </button>
             <div className="ml-auto flex items-center gap-2">
+              {avmCandidates.length > 0 && (
+                <button
+                  onClick={handleLoadAvmRents}
+                  disabled={!!avmProgress}
+                  className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  title="Replace baseline rents in the current view with RentCast AVM estimates — 1 API call per listing. Narrow your filters first to spend fewer calls."
+                >
+                  {avmProgress
+                    ? `AVM rents ${avmProgress.done}/${avmProgress.total}…`
+                    : `AVM rents for ${Math.min(avmCandidates.length, 50)}${
+                        avmCandidates.length > 50 ? ` of ${avmCandidates.length}` : ""
+                      } (${Math.min(avmCandidates.length, 50)} API calls)`}
+                </button>
+              )}
               {compareIds.length > 0 && (
                 <button
                   onClick={() => setCompareIds([])}

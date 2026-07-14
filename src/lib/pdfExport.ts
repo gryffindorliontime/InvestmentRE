@@ -274,6 +274,16 @@ export async function buildListingPdf(
     cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
   }
 
+  // ---- Listing contact ----------------------------------------------------------
+  const contactRows: [string, string][] = [];
+  const describeContact = (c: NonNullable<typeof property.listingAgent>) =>
+    [c.name, c.phone, c.email, c.website].filter(Boolean).join(" · ");
+  if (property.listingAgent) contactRows.push(["Agent", describeContact(property.listingAgent)]);
+  if (property.listingOffice) contactRows.push(["Brokerage", describeContact(property.listingOffice)]);
+  if (contactRows.length > 0) {
+    kvSection("Listing contact", contactRows);
+  }
+
   // ---- Footer -----------------------------------------------------------------
   const assumptionsSummary =
     `Assumptions: ${formatPercent(assumptions.downPaymentPct * 100, 0)} down · ` +

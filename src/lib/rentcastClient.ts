@@ -12,6 +12,7 @@ import { geocodeCounty, type GeocodedArea } from "./geocode";
 import type {
   AssessmentYearRecord,
   HomeType,
+  ListingContact,
   ListingStatus,
   Property,
   PropertyTaxRecord,
@@ -98,6 +99,20 @@ interface RawSaleListing {
   listingType?: string; // "Standard" | "New Construction" | "Foreclosure" | "Short Sale"
   listedDate?: string; // ISO timestamp
   daysOnMarket?: number;
+  listingAgent?: { name?: string; phone?: string; email?: string; website?: string };
+  listingOffice?: { name?: string; phone?: string; email?: string; website?: string };
+}
+
+// MLS feeds pad these fields with stray whitespace/tabs; drop empty shells.
+function mapContact(raw: RawSaleListing["listingAgent"]): ListingContact | undefined {
+  if (!raw) return undefined;
+  const contact: ListingContact = {
+    name: raw.name?.trim() || undefined,
+    phone: raw.phone?.trim() || undefined,
+    email: raw.email?.trim() || undefined,
+    website: raw.website?.trim() || undefined,
+  };
+  return Object.values(contact).some(Boolean) ? contact : undefined;
 }
 
 interface RawRentComparable {
@@ -215,6 +230,8 @@ export function mapSaleListingToProperty(raw: RawSaleListing): Property {
     // Not returned either — roi.ts estimates it from city/state tax rates.
     annualPropertyTax: undefined,
     keywords,
+    listingAgent: mapContact(raw.listingAgent),
+    listingOffice: mapContact(raw.listingOffice),
     source: "rentcast",
   };
 }

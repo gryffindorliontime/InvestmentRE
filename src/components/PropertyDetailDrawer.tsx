@@ -6,7 +6,7 @@ import { formatCurrency, formatPercent } from "@/lib/format";
 import { buildProjection } from "@/lib/projection";
 import { getLocalTaxRate } from "@/lib/propertyTax";
 import type { EnrichedListing } from "@/lib/searchEngine";
-import type { FinancingAssumptions } from "@/lib/types";
+import type { FinancingAssumptions, Property } from "@/lib/types";
 
 interface PropertyDetailDrawerProps {
   listing: EnrichedListing | null;
@@ -36,6 +36,46 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between border-b border-slate-100 py-1.5 text-sm">
       <span className="text-slate-500">{label}</span>
       <span className="font-medium text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+// "9723337715" → "(972) 333-7715"; anything unexpected passes through as-is.
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return raw;
+}
+
+function ContactBlock({ title, contact }: { title: string; contact: NonNullable<Property["listingAgent"]> }) {
+  return (
+    <div className="mt-2 rounded bg-slate-50 p-2 text-sm">
+      <p className="text-xs font-medium text-slate-500">{title}</p>
+      {contact.name && <p className="font-medium text-slate-900">{contact.name}</p>}
+      <div className="flex flex-wrap gap-x-3 text-xs">
+        {contact.phone && (
+          <a href={`tel:${contact.phone}`} className="text-blue-600 hover:underline">
+            {formatPhone(contact.phone)}
+          </a>
+        )}
+        {contact.email && (
+          <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline">
+            {contact.email}
+          </a>
+        )}
+        {contact.website && (
+          <a
+            href={contact.website.startsWith("http") ? contact.website : `https://${contact.website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            {contact.website.replace(/^https?:\/\//, "")}
+          </a>
+        )}
+      </div>
     </div>
   );
 }
@@ -152,6 +192,14 @@ export function PropertyDetailDrawer({
             </div>
           )}
         </section>
+
+        {(property.listingAgent || property.listingOffice) && (
+          <section className="mt-4">
+            <h3 className="text-sm font-semibold text-slate-800">Listing contact</h3>
+            {property.listingAgent && <ContactBlock title="Agent" contact={property.listingAgent} />}
+            {property.listingOffice && <ContactBlock title="Brokerage" contact={property.listingOffice} />}
+          </section>
+        )}
 
         <section className="mt-4">
           <div className="flex items-center justify-between">

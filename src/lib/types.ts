@@ -47,6 +47,9 @@ export interface Property {
   // FEMA flood zone for the property's coordinates. Present only after an
   // on-demand flood-zone lookup (free FEMA API, works for any listing).
   floodZone?: FloodZoneInfo;
+  // MLS contact info (live listings only).
+  listingAgent?: ListingContact;
+  listingOffice?: ListingContact;
   keywords: string[];
   photoUrl?: string;
   // Present only for known multi-family buildings with actual rent-roll data.
@@ -81,6 +84,15 @@ export interface PropertyTaxRecord {
   annualPropertyTax?: number;
   taxHistory: TaxYearRecord[]; // newest first
   assessmentHistory: AssessmentYearRecord[]; // newest first
+}
+
+// Listing agent / brokerage contact details, as reported by the MLS via
+// RentCast. Only present on live listings.
+export interface ListingContact {
+  name?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
 }
 
 export type FloodRiskLevel = "High" | "Moderate" | "Minimal" | "Undetermined";
