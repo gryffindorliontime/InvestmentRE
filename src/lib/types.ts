@@ -17,6 +17,9 @@ export interface Property {
   city: string;
   state: string;
   zip: string;
+  // County name without the "County" suffix (e.g. "Collin"). Only known for
+  // live RentCast listings.
+  county?: string;
   lat: number;
   lng: number;
   price: number;
@@ -33,9 +36,17 @@ export interface Property {
   parkingSpots: number;
   hasBasement: boolean;
   unitCount: number; // 1 for SFR/condo, 2-4 or 5+ for multifamily
-  // Not returned by RentCast's sale listings endpoint, so it's only known for
-  // mock data. Live listings fall back to assumptions.propertyTaxPct in roi.ts.
+  // Known for mock data at generation time; for live listings it's filled in
+  // when the user fetches the county tax record (RentCast /properties).
+  // Absent → estimated from city/state rates in roi.ts.
   annualPropertyTax?: number;
+  // County record history (RentCast /properties), newest year first. Present
+  // only after an on-demand tax-record fetch.
+  taxHistory?: TaxYearRecord[];
+  assessmentHistory?: AssessmentYearRecord[];
+  // FEMA flood zone for the property's coordinates. Present only after an
+  // on-demand flood-zone lookup (free FEMA API, works for any listing).
+  floodZone?: FloodZoneInfo;
   keywords: string[];
   photoUrl?: string;
   // Present only for known multi-family buildings with actual rent-roll data.
@@ -45,6 +56,40 @@ export interface Property {
   };
   // Defaults to "mock" when omitted (all MOCK_PROPERTIES entries).
   source?: "mock" | "rentcast";
+}
+
+// One tax year from the county assessor, via RentCast property records
+// (propertyTaxes[YYYY] in their schema).
+export interface TaxYearRecord {
+  year: number;
+  total: number; // total annual tax bill for that year
+}
+
+// One assessment year (taxAssessments[YYYY]): assessed value split into land
+// and improvements (building structures).
+export interface AssessmentYearRecord {
+  year: number;
+  value: number;
+  land?: number;
+  improvements?: number;
+}
+
+// Parsed result of a RentCast /properties tax lookup for one address.
+export interface PropertyTaxRecord {
+  // Most recent year's total tax bill — undefined when the county reported
+  // assessments but no tax amounts.
+  annualPropertyTax?: number;
+  taxHistory: TaxYearRecord[]; // newest first
+  assessmentHistory: AssessmentYearRecord[]; // newest first
+}
+
+export type FloodRiskLevel = "High" | "Moderate" | "Minimal" | "Undetermined";
+
+// FEMA National Flood Hazard Layer result for a property's coordinates.
+export interface FloodZoneInfo {
+  zone: string; // FIRM zone code, e.g. "AE", "VE", "X"
+  subtype?: string; // e.g. "0.2 PCT ANNUAL CHANCE FLOOD HAZARD", "FLOODWAY"
+  riskLevel: FloodRiskLevel;
 }
 
 // A nearby active rental listing used to build a comps-based rent estimate.

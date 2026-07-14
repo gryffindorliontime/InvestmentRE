@@ -15,7 +15,21 @@ interface PropertyDetailDrawerProps {
   onFetchLiveComps: (listing: EnrichedListing) => void;
   fetchingLiveComps: boolean;
   fetchLiveCompsError: string | null;
+  onFetchTaxRecord: (listing: EnrichedListing) => void;
+  fetchingTaxRecord: boolean;
+  fetchTaxRecordError: string | null;
+  onFetchFloodZone: (listing: EnrichedListing) => void;
+  fetchingFloodZone: boolean;
+  fetchFloodZoneError: string | null;
+  onExportPdf: (listing: EnrichedListing) => void;
 }
+
+const FLOOD_RISK_BADGE: Record<string, string> = {
+  High: "bg-rose-100 text-rose-800",
+  Moderate: "bg-amber-100 text-amber-800",
+  Minimal: "bg-emerald-100 text-emerald-800",
+  Undetermined: "bg-slate-200 text-slate-700",
+};
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -33,10 +47,18 @@ export function PropertyDetailDrawer({
   onFetchLiveComps,
   fetchingLiveComps,
   fetchLiveCompsError,
+  onFetchTaxRecord,
+  fetchingTaxRecord,
+  fetchTaxRecordError,
+  onFetchFloodZone,
+  fetchingFloodZone,
+  fetchFloodZoneError,
+  onExportPdf,
 }: PropertyDetailDrawerProps) {
   if (!listing) return null;
   const { property, rentEstimate, roi } = listing;
   const canUpgradeToLiveComps = property.source === "rentcast" && rentEstimate.method !== "comps";
+  const canFetchTaxRecord = property.source === "rentcast" && !property.taxHistory;
   const projection = property.homeType === "Land" ? null : buildProjection(property, roi, assumptions);
   const projectionRows = projection
     ? projection.years.filter((y) => [1, 3, 5, 10].includes(y.year))
@@ -80,11 +102,19 @@ export function PropertyDetailDrawer({
           >
             View on Realtor.com ↗
           </a>
+          <button
+            onClick={() => onExportPdf(listing)}
+            className="font-medium text-blue-600 hover:underline"
+            title="Download an investment report PDF for this listing"
+          >
+            Export PDF ⤓
+          </button>
         </div>
 
         <section className="mt-4">
           <h3 className="text-sm font-semibold text-slate-800">Property</h3>
           <Row label="Home type" value={property.homeType} />
+          {property.county && <Row label="County" value={`${property.county} County`} />}
           <Row label="Beds / baths" value={`${property.beds} / ${property.baths}`} />
           <Row label="Square footage" value={property.sqft ? `${property.sqft.toLocaleString()} sqft` : "—"} />
           <Row label="Lot size" value={property.lotSqft ? `${property.lotSqft.toLocaleString()} sqft` : "—"} />
@@ -92,6 +122,42 @@ export function PropertyDetailDrawer({
           <Row label="Units" value={String(property.unitCount)} />
           <Row label="Days on market" value={`${property.daysOnMarket}d`} />
           <Row label="HOA" value={property.hoaMonthly ? `${formatCurrency(property.hoaMonthly)}/mo` : "None"} />
+          {property.floodZone ? (
+            <div className="border-b border-slate-100 py-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Flood zone (FEMA)</span>
+                <span className="flex items-center gap-2">
+                  <span className="font-medium text-slate-900">Zone {property.floodZone.zone}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      FLOOD_RISK_BADGE[property.floodZone.riskLevel] ?? FLOOD_RISK_BADGE.Undetermined
+                    }`}
+                  >
+                    {property.floodZone.riskLevel} risk
+                  </span>
+                </span>
+              </div>
+              {property.floodZone.subtype && (
+                <p className="mt-0.5 text-right text-xs text-slate-400">{property.floodZone.subtype}</p>
+              )}
+              {property.floodZone.riskLevel === "High" && (
+                <p className="mt-0.5 text-right text-xs text-rose-600">
+                  Special Flood Hazard Area — lenders typically require flood insurance.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-2">
+              <button
+                onClick={() => onFetchFloodZone(listing)}
+                disabled={fetchingFloodZone}
+                className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {fetchingFloodZone ? "Checking FEMA flood maps…" : "Get FEMA flood zone (free)"}
+              </button>
+              {fetchFloodZoneError && <p className="mt-1 text-xs text-rose-600">{fetchFloodZoneError}</p>}
+            </div>
+          )}
         </section>
 
         <section className="mt-4">
@@ -169,9 +235,11 @@ export function PropertyDetailDrawer({
           <Row label="Annual rent (gross)" value={formatCurrency(roi.annualRent)} />
           <Row
             label={`Property tax (${
-              property.annualPropertyTax !== undefined
-                ? "from listing"
-                : `est. — ${taxRate.source === "city" ? property.city : taxRate.source === "state" ? property.state : "default"} rate ${formatPercent(taxRate.rate * 100, 2)}`
+              property.taxHistory?.length
+                ? `county record, ${property.taxHistory[0].year}`
+                : property.annualPropertyTax !== undefined
+                  ? "from listing"
+                  : `est. — ${taxRate.source === "city" ? property.city : taxRate.source === "state" ? property.state : "default"} rate ${formatPercent(taxRate.rate * 100, 2)}`
             })`}
             value={`${formatCurrency(roi.annualPropertyTax)}/yr`}
           />
@@ -180,6 +248,81 @@ export function PropertyDetailDrawer({
           <Row label="Cap rate" value={formatPercent(roi.capRatePct)} />
           <Row label="Gross rental yield" value={formatPercent(roi.grossYieldPct)} />
           <Row label="Rent-to-price ratio" value={formatPercent(roi.rentToPricePct, 2)} />
+        </section>
+
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold text-slate-800">County tax records</h3>
+          {canFetchTaxRecord && (
+            <div className="mt-2">
+              <button
+                onClick={() => onFetchTaxRecord(listing)}
+                disabled={fetchingTaxRecord}
+                className="w-full rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {fetchingTaxRecord ? "Fetching tax record…" : "Get county tax record (1 API call)"}
+              </button>
+              {fetchTaxRecordError && (
+                <p className="mt-1 text-xs text-rose-600">{fetchTaxRecordError}</p>
+              )}
+            </div>
+          )}
+          {property.taxHistory && property.taxHistory.length > 0 && (
+            <div className="mt-2">
+              <p className="mb-1 text-xs font-medium text-slate-600">Property taxes by year</p>
+              <div className="max-h-40 overflow-y-auto rounded border border-slate-100">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Tax year</th>
+                      <th className="px-2 py-1 text-right">Total tax</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {property.taxHistory.map((t) => (
+                      <tr key={t.year} className="border-t border-slate-100">
+                        <td className="px-2 py-1">{t.year}</td>
+                        <td className="px-2 py-1 text-right">{formatCurrency(t.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {property.assessmentHistory && property.assessmentHistory.length > 0 && (
+            <div className="mt-2">
+              <p className="mb-1 text-xs font-medium text-slate-600">Assessed values by year</p>
+              <div className="max-h-40 overflow-y-auto rounded border border-slate-100">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Year</th>
+                      <th className="px-2 py-1 text-right">Assessed</th>
+                      <th className="px-2 py-1 text-right">Land</th>
+                      <th className="px-2 py-1 text-right">Improvements</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {property.assessmentHistory.map((a) => (
+                      <tr key={a.year} className="border-t border-slate-100">
+                        <td className="px-2 py-1">{a.year}</td>
+                        <td className="px-2 py-1 text-right">{formatCurrency(a.value)}</td>
+                        <td className="px-2 py-1 text-right">{a.land !== undefined ? formatCurrency(a.land) : "—"}</td>
+                        <td className="px-2 py-1 text-right">
+                          {a.improvements !== undefined ? formatCurrency(a.improvements) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {!canFetchTaxRecord && !property.taxHistory && (
+            <p className="mt-1 text-xs text-slate-400">
+              County records are available for live RentCast listings only.
+            </p>
+          )}
         </section>
 
         <section className="mt-4">

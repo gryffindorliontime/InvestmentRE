@@ -51,7 +51,7 @@ export function LiveSearchBar({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           rows={1}
-          placeholder={'One region per line (or ; separated) — zip codes and/or "City, ST" mixed freely, e.g.:\n75217\nFort Worth, TX'}
+          placeholder={'One region per line (or ; separated) — zips, "City/Town, ST", or "Name County, ST" mixed freely, e.g.:\n75217\nFort Worth, TX\nCollin County, TX'}
           className="w-[28rem] resize-y rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
         />
         <button

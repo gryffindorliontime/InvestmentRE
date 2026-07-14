@@ -135,6 +135,13 @@ export const CITY_TAX_RATES: Record<string, number> = Object.fromEntries(
   CITIES.map((c) => [`${c.city}|${c.state}`, c.taxRatePct])
 );
 
+// Per-bedroom rent baselines keyed "City|ST". Live RentCast searches return
+// listings across many zips in a city, but ZIP_BASELINE_RENTS only covers one
+// zip per metro — this table catches the rest of the metro's zips.
+const CITY_BASELINE_RENTS: Record<string, Record<number, number>> = Object.fromEntries(
+  CITIES.map((c) => [`${c.city}|${c.state}`, c.rentByBeds])
+);
+
 function zipBaselineFor(zip: string, beds: number): number {
   const table = ZIP_BASELINE_RENTS[zip];
   if (!table) return 1200;
@@ -142,8 +149,11 @@ function zipBaselineFor(zip: string, beds: number): number {
   return table[clampedBeds] ?? 1200;
 }
 
-export function getZipBaselineRent(zip: string, beds: number): number {
-  return zipBaselineFor(zip, beds);
+export function getZipBaselineRent(zip: string, beds: number, city?: string, state?: string): number {
+  const table = ZIP_BASELINE_RENTS[zip] ?? (city && state ? CITY_BASELINE_RENTS[`${city}|${state}`] : undefined);
+  if (!table) return 1200;
+  const clampedBeds = Math.max(1, Math.min(5, beds || 1));
+  return table[clampedBeds] ?? 1200;
 }
 
 // Property.beds is TOTAL beds across every unit for multi-family properties
@@ -185,11 +195,16 @@ const HOME_TYPE_RENT_FACTOR: Record<HomeType, number> = {
 };
 
 // Per-unit monthly rent baseline for a property: zip/bedroom table adjusted
-// for home style. Use this instead of getZipBaselineRent when a full
-// property is in hand.
+// for home style, falling back zip → city → flat default. Use this instead
+// of getZipBaselineRent when a full property is in hand.
 export function getRentBaselineForProperty(property: Property): number {
   const factor = HOME_TYPE_RENT_FACTOR[property.homeType] ?? 1;
-  return Math.round(zipBaselineFor(property.zip, perUnitBeds(property)) * factor);
+  const beds = perUnitBeds(property);
+  const table =
+    ZIP_BASELINE_RENTS[property.zip] ?? CITY_BASELINE_RENTS[`${property.city}|${property.state}`];
+  const clampedBeds = Math.max(1, Math.min(5, beds || 1));
+  const baseline = table?.[clampedBeds] ?? 1200;
+  return Math.round(baseline * factor);
 }
 
 function weightedPick<T>(rand: () => number, weights: [T, number][]): T {

@@ -15,6 +15,7 @@ interface ResultsTableProps {
   compareIds: string[];
   onToggleCompare: (id: string) => void;
   compareLimitReached: boolean;
+  onExportPdf: (listing: EnrichedListing) => void;
 }
 
 const COLUMNS: { key: SortKey; label: string }[] = [
@@ -40,6 +41,7 @@ export function ResultsTable({
   compareIds,
   onToggleCompare,
   compareLimitReached,
+  onExportPdf,
 }: ResultsTableProps) {
   function handleSort(key: SortKey) {
     if (sort.key === key) {
@@ -121,6 +123,16 @@ export function ResultsTable({
                   >
                     Realtor.com ↗
                   </a>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onExportPdf({ property, rentEstimate, roi });
+                    }}
+                    className="text-blue-600 hover:underline"
+                    title="Download an investment report PDF for this listing"
+                  >
+                    PDF ⤓
+                  </button>
                 </div>
               </td>
               <td className="px-3 py-2 font-medium text-slate-900">{formatCurrency(property.price)}</td>

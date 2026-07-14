@@ -25,7 +25,12 @@ export async function GET(request: NextRequest) {
   try {
     const bedsNum = beds ? Number(beds) : 0;
     const unitCountNum = unitCount ? Number(unitCount) : 1;
-    const zipBaseline = getZipBaselineRent(zip, perUnitBeds({ beds: bedsNum, unitCount: unitCountNum }));
+    const zipBaseline = getZipBaselineRent(
+      zip,
+      perUnitBeds({ beds: bedsNum, unitCount: unitCountNum }),
+      city,
+      state
+    );
     const rentEstimate = await getRentEstimate(
       {
         address: `${address}, ${city}, ${state} ${zip}`,

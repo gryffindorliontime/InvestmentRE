@@ -3,7 +3,9 @@ import { estimateRent } from "./rentEstimate";
 import { computeROI } from "./roi";
 import type {
   FinancingAssumptions,
+  FloodZoneInfo,
   Property,
+  PropertyTaxRecord,
   RentEstimate,
   ROIResult,
   SearchFilters,
@@ -17,13 +19,20 @@ export interface EnrichedListing {
 }
 
 // Runs every mock property through the rent-estimation blend + ROI math once.
-export function buildEnrichedListings(assumptions: FinancingAssumptions): EnrichedListing[] {
+// `floodOverrides` holds on-demand FEMA flood-zone lookups keyed by property
+// id (flood zone doesn't affect ROI math, it's informational).
+export function buildEnrichedListings(
+  assumptions: FinancingAssumptions,
+  floodOverrides: Record<string, FloodZoneInfo> = {}
+): EnrichedListing[] {
   return MOCK_PROPERTIES.map((property) => {
-    const comps = getCompsForProperty(property);
-    const zipBaseline = getRentBaselineForProperty(property);
-    const rentEstimate = estimateRent(property, comps, zipBaseline);
-    const roi = computeROI(property, rentEstimate.monthlyRent, assumptions);
-    return { property, rentEstimate, roi };
+    const floodZone = floodOverrides[property.id];
+    const effectiveProperty = floodZone ? { ...property, floodZone } : property;
+    const comps = getCompsForProperty(effectiveProperty);
+    const zipBaseline = getRentBaselineForProperty(effectiveProperty);
+    const rentEstimate = estimateRent(effectiveProperty, comps, zipBaseline);
+    const roi = computeROI(effectiveProperty, rentEstimate.monthlyRent, assumptions);
+    return { property: effectiveProperty, rentEstimate, roi };
   });
 }
 
@@ -31,15 +40,32 @@ export function buildEnrichedListings(assumptions: FinancingAssumptions): Enrich
 // property already carries a rentEstimate (zip-baseline, computed for free by
 // /api/search) which can be swapped for a comps-based one via
 // `rentOverrides` after the user fetches live comps for that property.
+// `taxOverrides` works the same way for county tax records: fetched on
+// demand, they replace the city/state tax estimate in the ROI math.
 export function buildEnrichedListingsFromLive(
   entries: { property: Property; rentEstimate: RentEstimate }[],
   assumptions: FinancingAssumptions,
-  rentOverrides: Record<string, RentEstimate>
+  rentOverrides: Record<string, RentEstimate>,
+  taxOverrides: Record<string, PropertyTaxRecord> = {},
+  floodOverrides: Record<string, FloodZoneInfo> = {}
 ): EnrichedListing[] {
   return entries.map(({ property, rentEstimate }) => {
+    const taxRecord = taxOverrides[property.id];
+    const floodZone = floodOverrides[property.id];
+    let effectiveProperty: Property = taxRecord
+      ? {
+          ...property,
+          // Keep any existing value when the county reported assessments but
+          // no tax totals.
+          annualPropertyTax: taxRecord.annualPropertyTax ?? property.annualPropertyTax,
+          taxHistory: taxRecord.taxHistory,
+          assessmentHistory: taxRecord.assessmentHistory,
+        }
+      : property;
+    if (floodZone) effectiveProperty = { ...effectiveProperty, floodZone };
     const effectiveRentEstimate = rentOverrides[property.id] ?? rentEstimate;
-    const roi = computeROI(property, effectiveRentEstimate.monthlyRent, assumptions);
-    return { property, rentEstimate: effectiveRentEstimate, roi };
+    const roi = computeROI(effectiveProperty, effectiveRentEstimate.monthlyRent, assumptions);
+    return { property: effectiveProperty, rentEstimate: effectiveRentEstimate, roi };
   });
 }
 
@@ -55,7 +81,9 @@ export function applyFilters(listings: EnrichedListing[], filters: SearchFilters
 
   return listings.filter(({ property, roi }) => {
     if (locationQuery) {
-      const haystack = `${property.city} ${property.state} ${property.zip}`.toLowerCase();
+      const haystack = `${property.city} ${property.state} ${property.zip} ${
+        property.county ? `${property.county} county` : ""
+      }`.toLowerCase();
       if (!haystack.includes(locationQuery)) return false;
     }
 

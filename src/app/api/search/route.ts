@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   if (!parsed) {
     return NextResponse.json(
-      { error: "Enter a location as a 5-digit zip code or \"City, ST\"." },
+      { error: "Enter a location as a 5-digit zip code, \"City, ST\", or \"Name County, ST\"." },
       { status: 400 }
     );
   }
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
       city: parsed.city,
       state: parsed.state,
       zipCode: parsed.zipCode,
+      county: parsed.county,
       priceMin: priceMin ? Number(priceMin) : undefined,
       priceMax: priceMax ? Number(priceMax) : undefined,
       propertyType: (homeType as HomeType) || undefined,

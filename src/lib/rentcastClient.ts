@@ -8,7 +8,17 @@
 // Field mappings below were confirmed against real API responses on
 // 2026-07-12 (see /listings/sale, /avm/rent/long-term) — not guessed.
 
-import type { HomeType, ListingStatus, Property, RentComp, RentEstimate } from "./types";
+import { geocodeCounty, type GeocodedArea } from "./geocode";
+import type {
+  AssessmentYearRecord,
+  HomeType,
+  ListingStatus,
+  Property,
+  PropertyTaxRecord,
+  RentComp,
+  RentEstimate,
+  TaxYearRecord,
+} from "./types";
 
 const BASE_URL = process.env.RENTCAST_BASE_URL ?? "https://api.rentcast.io/v1";
 
@@ -69,20 +79,24 @@ interface RawSaleListing {
   id: string;
   formattedAddress: string;
   addressLine1: string;
+  addressLine2?: string; // unit/apt designator, present for condos etc.
   city: string;
   state: string;
   zipCode: string;
+  county?: string;
   latitude: number;
   longitude: number;
   propertyType: string;
   bedrooms?: number;
   bathrooms?: number;
   squareFootage?: number;
-  lotSize?: number;
+  lotSize?: number; // sqft
   yearBuilt?: number;
   hoa?: { fee?: number };
   status: string;
   price: number;
+  listingType?: string; // "Standard" | "New Construction" | "Foreclosure" | "Short Sale"
+  listedDate?: string; // ISO timestamp
   daysOnMarket?: number;
 }
 
@@ -102,6 +116,19 @@ interface RawAvmRentResponse {
   rentRangeLow: number;
   rentRangeHigh: number;
   comparables: RawRentComparable[];
+}
+
+// Property record (/properties) — county assessor data. Taxes and
+// assessments are objects keyed by tax year ("2023": {...}), per
+// https://developers.rentcast.io/reference/property-data-schema.
+interface RawPropertyRecord {
+  id: string;
+  formattedAddress: string;
+  propertyTaxes?: Record<string, { year: number; total: number }>;
+  taxAssessments?: Record<
+    string,
+    { year: number; value: number; land?: number; improvements?: number }
+  >;
 }
 
 // ---- Field mapping -----------------------------------------------------
@@ -126,16 +153,45 @@ function mapStatus(raw: string): ListingStatus {
   return "Recently Sold";
 }
 
+// RentCast omits daysOnMarket on some listings but almost always returns
+// listedDate — derive the age from that before giving up.
+function resolveDaysOnMarket(raw: RawSaleListing): number {
+  if (raw.daysOnMarket !== undefined) return raw.daysOnMarket;
+  if (raw.listedDate) {
+    const listed = Date.parse(raw.listedDate);
+    if (!Number.isNaN(listed)) {
+      return Math.max(0, Math.round((Date.now() - listed) / 86_400_000));
+    }
+  }
+  return 0;
+}
+
 export function mapSaleListingToProperty(raw: RawSaleListing): Property {
   const homeType = mapPropertyType(raw.propertyType);
   const sqft = raw.squareFootage ?? 0;
 
+  // RentCast doesn't report unit counts, so use the lower bound implied by
+  // the property type — rent totals for multifamily stay conservative.
+  const unitCount =
+    homeType === "Land" ? 0 :
+    homeType === "Multi-Family (5+ unit)" ? 5 :
+    homeType === "Multi-Family (2-4 unit)" ? 2 : 1;
+
+  // Searchable listing attributes RentCast exposes outside the mock schema
+  // (listing type, county) live in keywords so the keyword filter finds them.
+  const keywords: string[] = [];
+  if (raw.listingType && raw.listingType.toLowerCase() !== "standard") {
+    keywords.push(raw.listingType.toLowerCase());
+  }
+  if (raw.county) keywords.push(`${raw.county} county`.toLowerCase());
+
   return {
     id: raw.id,
-    address: raw.addressLine1,
+    address: [raw.addressLine1, raw.addressLine2].filter(Boolean).join(", "),
     city: raw.city,
     state: raw.state,
     zip: raw.zipCode,
+    county: raw.county,
     lat: raw.latitude,
     lng: raw.longitude,
     price: raw.price,
@@ -145,7 +201,7 @@ export function mapSaleListingToProperty(raw: RawSaleListing): Property {
     sqft,
     lotSqft: raw.lotSize ?? 0,
     yearBuilt: raw.yearBuilt ?? 0,
-    daysOnMarket: raw.daysOnMarket ?? 0,
+    daysOnMarket: resolveDaysOnMarket(raw),
     status: mapStatus(raw.status),
     // RentCast's hoa.fee doesn't document billing frequency; treating as
     // monthly, which matches the typical range seen for HOA fees at this
@@ -155,9 +211,10 @@ export function mapSaleListingToProperty(raw: RawSaleListing): Property {
     // Not returned by the sale listings endpoint.
     parkingSpots: 0,
     hasBasement: false,
-    unitCount: homeType.startsWith("Multi-Family") ? 2 : 1,
+    unitCount,
+    // Not returned either — roi.ts estimates it from city/state tax rates.
     annualPropertyTax: undefined,
-    keywords: [],
+    keywords,
     source: "rentcast",
   };
 }
@@ -166,7 +223,8 @@ function mapComparable(raw: RawRentComparable): RentComp {
   return {
     id: raw.id,
     address: raw.formattedAddress,
-    distanceMiles: raw.distance ?? 0,
+    // Live distances come back with 4+ decimals — round for display.
+    distanceMiles: Math.round((raw.distance ?? 0) * 100) / 100,
     beds: raw.bedrooms ?? 0,
     baths: raw.bathrooms ?? 0,
     sqft: raw.squareFootage ?? 0,
@@ -206,10 +264,19 @@ export interface SaleListingSearchParams {
   city?: string;
   state?: string;
   zipCode?: string;
+  // County name, with or without the "County" suffix. RentCast has no county
+  // query parameter (verified 2026-07-14: ?county= is silently ignored), so
+  // county searches geocode the county to a centroid + radius, run a radius
+  // search, and filter the response by each listing's county field.
+  county?: string;
   priceMin?: number;
   priceMax?: number;
   propertyType?: HomeType;
   limit?: number;
+}
+
+function normalizeCounty(name: string): string {
+  return name.replace(/\s+county$/i, "").trim().toLowerCase();
 }
 
 const HOME_TYPE_TO_RENTCAST: Record<HomeType, string> = {
@@ -223,17 +290,36 @@ const HOME_TYPE_TO_RENTCAST: Record<HomeType, string> = {
 };
 
 export async function searchSaleListings(params: SaleListingSearchParams): Promise<Property[]> {
+  // County searches: geocode (free, Nominatim) → RentCast radius search
+  // (still exactly 1 RentCast API call) → exact county filter, since the
+  // radius circle overlaps neighboring counties.
+  const isCountySearch = params.county !== undefined;
+  let area: GeocodedArea | null = null;
+  if (isCountySearch) {
+    area = await geocodeCounty(normalizeCounty(params.county!), params.state ?? "");
+    if (!area) {
+      throw new Error(`Couldn't locate ${params.county}, ${params.state ?? "US"} on the map.`);
+    }
+  }
+
   const raw = await rentcastFetch<RawSaleListing[]>("/listings/sale", {
-    city: params.city,
-    state: params.state,
+    city: isCountySearch ? undefined : params.city,
+    state: isCountySearch ? undefined : params.state,
     zipCode: params.zipCode,
+    latitude: area?.lat,
+    longitude: area?.lng,
+    radius: area?.radiusMiles,
     status: "Active",
     propertyType: params.propertyType ? HOME_TYPE_TO_RENTCAST[params.propertyType] : undefined,
-    limit: params.limit ?? 20,
+    limit: isCountySearch ? 500 : params.limit ?? 20,
   });
 
   let properties = raw.map(mapSaleListingToProperty);
 
+  if (isCountySearch) {
+    const wanted = normalizeCounty(params.county!);
+    properties = properties.filter((p) => p.county !== undefined && normalizeCounty(p.county) === wanted);
+  }
   if (params.priceMin !== undefined) {
     properties = properties.filter((p) => p.price >= params.priceMin!);
   }
@@ -251,6 +337,32 @@ export interface RentEstimateParams {
   bathrooms?: number;
   squareFootage?: number;
   unitCount?: number;
+}
+
+// Fetches the county tax record for one address (1 API call). Returns null
+// when RentCast has no record — or a record with no tax/assessment data —
+// for the address.
+export async function getPropertyTaxRecord(address: string): Promise<PropertyTaxRecord | null> {
+  const raw = await rentcastFetch<RawPropertyRecord[] | RawPropertyRecord>("/properties", {
+    address,
+  });
+  const record = Array.isArray(raw) ? raw[0] : raw;
+  if (!record) return null;
+
+  const taxHistory: TaxYearRecord[] = Object.values(record.propertyTaxes ?? {})
+    .map((t) => ({ year: t.year, total: t.total }))
+    .sort((a, b) => b.year - a.year);
+  const assessmentHistory: AssessmentYearRecord[] = Object.values(record.taxAssessments ?? {})
+    .map((a) => ({ year: a.year, value: a.value, land: a.land, improvements: a.improvements }))
+    .sort((a, b) => b.year - a.year);
+
+  if (taxHistory.length === 0 && assessmentHistory.length === 0) return null;
+
+  return {
+    annualPropertyTax: taxHistory[0]?.total,
+    taxHistory,
+    assessmentHistory,
+  };
 }
 
 export async function getRentEstimate(
