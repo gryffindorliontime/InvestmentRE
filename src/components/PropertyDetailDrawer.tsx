@@ -226,22 +226,22 @@ export function PropertyDetailDrawer({
           <Row label="Zip baseline weight" value={formatPercent(rentEstimate.zipBaselineWeight * 100, 0)} />
           <Row label="Zip baseline rent" value={`${formatCurrency(rentEstimate.zipBaselineMonthlyRent)}/mo`} />
 
-          {canUpgradeToLiveComps &&
-            (fetchingLiveComps ? (
-              <p className="mt-1 text-xs text-slate-400">Fetching RentCast rent estimate…</p>
-            ) : (
-              <div className="mt-1 flex items-center justify-between text-xs">
-                <span className="text-rose-600">
-                  {fetchLiveCompsError ?? "RentCast rent estimate not loaded — showing local baseline."}
-                </span>
-                <button
-                  onClick={() => onFetchLiveComps(listing)}
-                  className="font-medium text-blue-600 hover:underline"
-                >
-                  Retry (1 API call)
-                </button>
-              </div>
-            ))}
+          {canUpgradeToLiveComps && (
+            <div className="mt-2">
+              <button
+                onClick={() => onFetchLiveComps(listing)}
+                disabled={fetchingLiveComps}
+                className="w-full rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {fetchingLiveComps
+                  ? "Fetching RentCast rent estimate…"
+                  : "Get RentCast rent estimate (1 API call)"}
+              </button>
+              {fetchLiveCompsError && (
+                <p className="mt-1 text-xs text-rose-600">{fetchLiveCompsError}</p>
+              )}
+            </div>
+          )}
 
           {rentEstimate.compsUsed.length > 0 && (
             <div className="mt-2">

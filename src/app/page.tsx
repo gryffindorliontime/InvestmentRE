@@ -127,28 +127,20 @@ export default function Home() {
     [allListings, compareIds]
   );
 
-  // Opening a listing automatically pulls its RentCast rent estimate (AVM
-  // with comps, 1 API call), county tax record (RentCast, 1 API call) and
-  // FEMA flood zone (free) so the ROI runs on RentCast's rent + the real tax
-  // bill, and flood warnings appear — all without extra clicks. Live
-  // listings only for the RentCast lookups. The refs make each fetch
-  // once-per-property, so a failed lookup doesn't retry in a loop (the
-  // drawer offers a manual retry instead).
+  // Opening a listing automatically pulls its county tax record (RentCast,
+  // 1 API call — live listings only) and FEMA flood zone (free) so the ROI
+  // uses the real tax bill and flood warnings appear without extra clicks.
+  // The AVM rent estimate is deliberately NOT auto-fetched on open — it only
+  // runs from the drawer's explicit button, the capped toolbar batch, or a
+  // PDF export. The refs make each fetch once-per-property, so a failed
+  // lookup doesn't retry in a loop (the drawer offers a manual retry).
   const rentAutoFetched = useRef(new Set<string>());
   const taxAutoFetched = useRef(new Set<string>());
   const floodAutoFetched = useRef(new Set<string>());
   const selectedForAutoFetch = selectedListing;
   useEffect(() => {
     if (!selectedForAutoFetch) return;
-    const { property, rentEstimate } = selectedForAutoFetch;
-    if (
-      property.source === "rentcast" &&
-      rentEstimate.method !== "comps" &&
-      !rentAutoFetched.current.has(property.id)
-    ) {
-      rentAutoFetched.current.add(property.id);
-      handleFetchLiveComps(selectedForAutoFetch);
-    }
+    const { property } = selectedForAutoFetch;
     if (
       property.source === "rentcast" &&
       !property.taxHistory &&
@@ -250,6 +242,7 @@ export default function Home() {
         city: property.city,
         state: property.state,
         zip: property.zip,
+        county: property.county ?? "",
         homeType: property.homeType,
         beds: String(property.beds),
         baths: String(property.baths),
@@ -310,6 +303,7 @@ export default function Home() {
               city: property.city,
               state: property.state,
               zip: property.zip,
+              county: property.county ?? "",
               homeType: property.homeType,
               beds: String(property.beds),
               baths: String(property.baths),
@@ -397,6 +391,7 @@ export default function Home() {
           city: property.city,
           state: property.state,
           zip: property.zip,
+          county: property.county ?? "",
           homeType: property.homeType,
           beds: String(property.beds),
           baths: String(property.baths),
