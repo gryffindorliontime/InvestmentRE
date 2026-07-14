@@ -159,9 +159,16 @@ export async function buildListingPdf(
   }
   kvSection("Rent estimate", rentRows);
 
+  const insuranceSource =
+    roi.insuranceSource === "override"
+      ? "assumption"
+      : roi.insuranceSource === "state"
+        ? `est. — ${property.state} average`
+        : "est. — national average";
   kvSection("Returns", [
     ["Annual rent (gross)", formatCurrency(roi.annualRent)],
     [`Property tax (${taxSource})`, `${formatCurrency(roi.annualPropertyTax)}/yr`],
+    [`Insurance (${insuranceSource})`, `${formatCurrency(roi.annualInsurance)}/yr`],
     ["Annual operating expenses", formatCurrency(roi.annualOperatingExpenses)],
     ["Net operating income (NOI)", formatCurrency(roi.noi)],
     ["Cap rate", formatPercent(roi.capRatePct)],
@@ -184,11 +191,24 @@ export async function buildListingPdf(
     ["Total interest over loan term", formatCurrency(roi.totalInterestOverLoanTerm)],
   ]);
 
-  kvSection("Cash flow", [
+  const cashFlowRows: [string, string][] = [
     ["Annual cash flow", formatCurrency(roi.annualCashFlow)],
     ["Monthly cash flow", formatCurrency(roi.monthlyCashFlow)],
     ["Cash-on-cash return", formatPercent(roi.cashOnCashPct)],
-  ]);
+  ];
+  if (roi.targetPrice !== null) {
+    cashFlowRows.push([
+      `Price to hit ${formatPercent(assumptions.requiredReturnPct * 100)} cash-on-cash`,
+      `${formatCurrency(roi.targetPrice)}${
+        property.price > 0
+          ? roi.meetsRequiredReturn
+            ? " (asking price meets target)"
+            : ` (${formatPercent(((roi.targetPrice - property.price) / property.price) * 100, 1)} vs asking)`
+          : ""
+      }`,
+    ]);
+  }
+  kvSection("Cash flow", cashFlowRows);
 
   // ---- 10-year projection -----------------------------------------------------
   const projection = property.homeType === "Land" ? null : buildProjection(property, roi, assumptions);
@@ -260,7 +280,12 @@ export async function buildListingPdf(
     `${formatPercent(assumptions.interestRatePct * 100, 2)} / ${assumptions.loanTermYears} yr · ` +
     `closing ${formatPercent(assumptions.closingCostsPct * 100, 0)} · vacancy ${formatPercent(assumptions.vacancyPct * 100, 0)} · ` +
     `maintenance ${formatPercent(assumptions.maintenanceCapexPct * 100, 0)} · mgmt ${formatPercent(assumptions.propertyMgmtPct * 100, 0)} · ` +
-    `insurance ${formatCurrency(assumptions.annualInsuranceEstimate)}/yr · rent growth ${formatPercent(assumptions.rentGrowthPct * 100, 0)}/yr · ` +
+    `insurance ${
+      assumptions.annualInsuranceEstimate !== null
+        ? `${formatCurrency(assumptions.annualInsuranceEstimate)}/yr`
+        : "local estimate"
+    } · required return ${formatPercent(assumptions.requiredReturnPct * 100, 1)} · ` +
+    `rent growth ${formatPercent(assumptions.rentGrowthPct * 100, 0)}/yr · ` +
     `selling costs ${formatPercent(assumptions.sellingCostsPct * 100, 0)}`;
   const generated = `Generated ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} · Real Estate ROI Dashboard${
     property.source === "rentcast" ? " · Listing data: RentCast" : " · Sample (mock) listing"

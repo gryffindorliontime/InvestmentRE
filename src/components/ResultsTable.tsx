@@ -24,9 +24,12 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "capRatePct", label: "Cap Rate" },
   { key: "cashOnCashPct", label: "Cash-on-Cash" },
   { key: "monthlyCashFlow", label: "Cash Flow / mo" },
+  { key: "targetPrice", label: "Price @ Target" },
   { key: "rentToPricePct", label: "Rent/Price" },
   { key: "daysOnMarket", label: "DOM" },
 ];
+
+const NEW_LISTING_MAX_DOM = 7;
 
 function cashFlowColor(value: number): string {
   return value >= 0 ? "text-emerald-700" : "text-rose-700";
@@ -98,7 +101,14 @@ export function ResultsTable({
                 />
               </td>
               <td className="px-3 py-2">
-                <div className="font-medium text-slate-900">{property.address}</div>
+                <div className="font-medium text-slate-900">
+                  {property.address}
+                  {property.daysOnMarket <= NEW_LISTING_MAX_DOM && (
+                    <span className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
+                      NEW
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-slate-500">
                   {property.city}, {property.state} {property.zip} · {property.homeType} ·{" "}
                   {property.beds > 0 ? `${property.beds}bd/${property.baths}ba` : "—"} ·{" "}
@@ -156,6 +166,24 @@ export function ResultsTable({
               <td className="px-3 py-2 font-medium text-slate-900">{formatPercent(roi.cashOnCashPct)}</td>
               <td className={`px-3 py-2 font-medium ${cashFlowColor(roi.monthlyCashFlow)}`}>
                 {formatCurrency(roi.monthlyCashFlow)}
+              </td>
+              <td className="px-3 py-2">
+                {roi.targetPrice === null ? (
+                  <span className="text-slate-400">—</span>
+                ) : (
+                  <div>
+                    <span className={`font-medium ${roi.meetsRequiredReturn ? "text-emerald-700" : "text-slate-900"}`}>
+                      {formatCurrency(roi.targetPrice)}
+                    </span>
+                    <div className={`text-xs ${roi.meetsRequiredReturn ? "text-emerald-700" : "text-slate-500"}`}>
+                      {roi.meetsRequiredReturn
+                        ? "meets target"
+                        : property.price > 0
+                          ? `${formatPercent(((roi.targetPrice - property.price) / property.price) * 100, 0)} vs ask`
+                          : ""}
+                    </div>
+                  </div>
+                )}
               </td>
               <td className="px-3 py-2 text-slate-700">{formatPercent(roi.rentToPricePct, 2)}</td>
               <td className="px-3 py-2 text-slate-700">{property.daysOnMarket}d</td>

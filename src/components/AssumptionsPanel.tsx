@@ -90,6 +90,39 @@ function DollarField({
   );
 }
 
+// Dollar input where empty means "auto": clearing the field commits null.
+function NullableDollarField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  placeholder: string;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-slate-600">
+      {label}
+      <input
+        type="number"
+        value={value ?? ""}
+        placeholder={placeholder}
+        onChange={(e) => {
+          if (e.target.value === "") {
+            onChange(null);
+            return;
+          }
+          const parsed = Number(e.target.value);
+          if (Number.isFinite(parsed)) onChange(parsed);
+        }}
+        className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
+      />
+    </label>
+  );
+}
+
 export function AssumptionsPanel({ assumptions, onChange, onReset }: AssumptionsPanelProps) {
   function update<K extends keyof FinancingAssumptions>(key: K, value: FinancingAssumptions[K]) {
     onChange({ ...assumptions, [key]: value });
@@ -140,10 +173,16 @@ export function AssumptionsPanel({ assumptions, onChange, onReset }: Assumptions
           value={assumptions.propertyMgmtPct}
           onChange={(v) => update("propertyMgmtPct", v)}
         />
-        <DollarField
-          label="Annual insurance ($)"
+        <NullableDollarField
+          label="Annual insurance ($ — blank = local estimate)"
           value={assumptions.annualInsuranceEstimate}
+          placeholder="Auto (state avg)"
           onChange={(v) => update("annualInsuranceEstimate", v)}
+        />
+        <PctField
+          label="Required return (cash-on-cash)"
+          value={assumptions.requiredReturnPct}
+          onChange={(v) => update("requiredReturnPct", v)}
         />
         <PctField
           label="Rent growth / yr"

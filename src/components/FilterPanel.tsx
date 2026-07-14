@@ -97,13 +97,14 @@ export function FilterPanel({ filters, onChange, onReset, resultCount }: FilterP
     update("states", next);
   }
 
-  const investorActive = [
-    filters.capRateMin,
-    filters.cashOnCashMin,
-    filters.monthlyCashFlowMin,
-    filters.rentToPriceMin,
-    filters.unitCountMin,
-  ].filter((v) => v !== null).length;
+  const investorActive =
+    [
+      filters.capRateMin,
+      filters.cashOnCashMin,
+      filters.monthlyCashFlowMin,
+      filters.rentToPriceMin,
+      filters.unitCountMin,
+    ].filter((v) => v !== null).length + (filters.meetsTargetOnly ? 1 : 0);
 
   const moreActive =
     [
@@ -330,6 +331,14 @@ export function FilterPanel({ filters, onChange, onReset, resultCount }: FilterP
             onChange={(v) => update("unitCountMin", v)}
             width="w-full"
           />
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={filters.meetsTargetOnly}
+              onChange={(e) => update("meetsTargetOnly", e.target.checked)}
+            />
+            Meets required return
+          </label>
         </div>
       </Dropdown>
 

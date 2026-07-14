@@ -1,4 +1,5 @@
-import { estimateAnnualPropertyTax } from "./propertyTax";
+import { estimateAnnualInsurance } from "./insurance";
+import { estimateAnnualPropertyTax, getLocalTaxRate } from "./propertyTax";
 import type { FinancingAssumptions, Property, ROIResult } from "./types";
 
 export const DEFAULT_ASSUMPTIONS: FinancingAssumptions = {
@@ -9,9 +10,10 @@ export const DEFAULT_ASSUMPTIONS: FinancingAssumptions = {
   vacancyPct: 0.05,
   maintenanceCapexPct: 0.1,
   propertyMgmtPct: 0.08,
-  annualInsuranceEstimate: 1800,
+  annualInsuranceEstimate: null, // null = per-listing local estimate
   rentGrowthPct: 0.03,
   sellingCostsPct: 0.06,
+  requiredReturnPct: 0.08,
 };
 
 function monthlyMortgagePayment(loanAmount: number, annualRatePct: number, termYears: number): number {
@@ -41,9 +43,13 @@ export function computeROI(
   const maintenanceCapex = annualRent * assumptions.maintenanceCapexPct;
   const propertyMgmt = annualRent * assumptions.propertyMgmtPct;
   const annualPropertyTax = estimateAnnualPropertyTax(property);
+  const insuranceEstimate = estimateAnnualInsurance(property);
+  const annualInsurance = assumptions.annualInsuranceEstimate ?? insuranceEstimate.annual;
+  const insuranceSource: ROIResult["insuranceSource"] =
+    assumptions.annualInsuranceEstimate !== null ? "override" : insuranceEstimate.source;
   const annualOperatingExpenses =
     annualPropertyTax +
-    assumptions.annualInsuranceEstimate +
+    annualInsurance +
     vacancyLoss +
     maintenanceCapex +
     propertyMgmt +
@@ -86,10 +92,43 @@ export function computeROI(
     ? monthlyMortgagePI * assumptions.loanTermYears * 12 - loanAmount
     : 0;
 
+  // ---- Price to hit the required cash-on-cash return ------------------------
+  // Solve CoC(P) = t for purchase price P, holding rent, the expense
+  // percentages, insurance, and HOA constant. Only tax and financing scale
+  // with P:
+  //   K            = rent-side constants = annualRent − vacancy − maint −
+  //                  mgmt − HOA − insurance
+  //   tax(P)       = r·P   (r from the listing's actual bill when known —
+  //                  taxes get reassessed at sale — else the local rate)
+  //   debt(P)      = P·(1−d)·A   (A = annual mortgage constant per $1)
+  //   invested(P)  = P·(d+c)
+  //   CoC = (K − rP − P(1−d)A) / (P(d+c)) = t
+  //   ⇒ P* = K / (r + (1−d)·A + t·(d+c))
+  const K = annualRent - vacancyLoss - maintenanceCapex - propertyMgmt -
+    property.hoaMonthly * 12 - annualInsurance;
+  const taxRate =
+    property.annualPropertyTax !== undefined && property.price > 0
+      ? property.annualPropertyTax / property.price
+      : getLocalTaxRate(property.city, property.state).rate;
+  const annualMortgageConstant =
+    monthlyMortgagePayment(1, assumptions.interestRatePct, assumptions.loanTermYears) * 12;
+  const targetDenominator =
+    taxRate +
+    (1 - downPaymentPct) * annualMortgageConstant +
+    assumptions.requiredReturnPct * (downPaymentPct + assumptions.closingCostsPct);
+  const targetPrice =
+    K > 0 && targetDenominator > 0 ? Math.round(K / targetDenominator) : null;
+  const meetsRequiredReturn =
+    targetPrice !== null && property.price > 0 && property.price <= targetPrice;
+
   return {
     monthlyRent,
     annualRent,
     annualPropertyTax,
+    annualInsurance,
+    insuranceSource,
+    targetPrice,
+    meetsRequiredReturn,
     annualOperatingExpenses,
     noi,
     capRatePct,

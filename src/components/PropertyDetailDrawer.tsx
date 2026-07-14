@@ -244,6 +244,16 @@ export function PropertyDetailDrawer({
             })`}
             value={`${formatCurrency(roi.annualPropertyTax)}/yr`}
           />
+          <Row
+            label={`Insurance (${
+              roi.insuranceSource === "override"
+                ? "your assumption"
+                : roi.insuranceSource === "state"
+                  ? `est. — ${property.state} average`
+                  : "est. — national average"
+            })`}
+            value={`${formatCurrency(roi.annualInsurance)}/yr`}
+          />
           <Row label="Annual operating expenses" value={formatCurrency(roi.annualOperatingExpenses)} />
           <Row label="Net operating income (NOI)" value={formatCurrency(roi.noi)} />
           <Row label="Cap rate" value={formatPercent(roi.capRatePct)} />
@@ -357,6 +367,32 @@ export function PropertyDetailDrawer({
           <Row label="= Annual cash flow" value={formatCurrency(roi.annualCashFlow)} />
           <Row label="= Monthly cash flow" value={formatCurrency(roi.monthlyCashFlow)} />
           <Row label="Cash-on-cash return" value={formatPercent(roi.cashOnCashPct)} />
+        </section>
+
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold text-slate-800">
+            Required return ({formatPercent(assumptions.requiredReturnPct * 100)} cash-on-cash)
+          </h3>
+          {roi.targetPrice === null ? (
+            <p className="mt-1 text-xs text-slate-400">
+              No purchase price reaches the target — the estimated rent doesn&apos;t cover the
+              price-independent costs (insurance, HOA, vacancy/maintenance/management).
+            </p>
+          ) : (
+            <>
+              <Row label="Price to hit target" value={formatCurrency(roi.targetPrice)} />
+              {property.price > 0 && (
+                <Row
+                  label={roi.meetsRequiredReturn ? "Asking price meets target" : "Needed vs asking"}
+                  value={
+                    roi.meetsRequiredReturn
+                      ? `✓ (${formatCurrency(roi.targetPrice - property.price)} of headroom)`
+                      : `${formatPercent(((roi.targetPrice - property.price) / property.price) * 100, 1)}`
+                  }
+                />
+              )}
+            </>
+          )}
         </section>
 
         {projection && (

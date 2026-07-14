@@ -124,6 +124,7 @@ export function applyFilters(listings: EnrichedListing[], filters: SearchFilters
       return false;
     if (filters.rentToPriceMin !== null && roi.rentToPricePct < filters.rentToPriceMin) return false;
     if (filters.unitCountMin !== null && property.unitCount < filters.unitCountMin) return false;
+    if (filters.meetsTargetOnly && !roi.meetsRequiredReturn) return false;
 
     return true;
   });
@@ -145,6 +146,9 @@ export function sortListings(listings: EnrichedListing[], sort: SortState): Enri
           return listing.roi.rentToPricePct;
         case "monthlyRent":
           return listing.rentEstimate.monthlyRent;
+        case "targetPrice":
+          // Listings with no achievable target sink to the bottom either way.
+          return listing.roi.targetPrice ?? (sort.direction === "asc" ? Infinity : -Infinity);
         case "daysOnMarket":
           return listing.property.daysOnMarket;
         default:

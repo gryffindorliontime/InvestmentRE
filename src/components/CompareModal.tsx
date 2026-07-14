@@ -43,6 +43,18 @@ export function CompareModal({ listings, assumptions, onClose, onRemove }: Compa
       ),
     },
     { label: "Rent-to-price", render: (l) => formatPercent(l.roi.rentToPricePct, 2) },
+    {
+      label: "Price @ required return",
+      render: (l) =>
+        l.roi.targetPrice === null ? (
+          "—"
+        ) : (
+          <span className={l.roi.meetsRequiredReturn ? "text-emerald-700" : undefined}>
+            {formatCurrency(l.roi.targetPrice)}
+            {l.roi.meetsRequiredReturn ? " ✓" : ""}
+          </span>
+        ),
+    },
     { label: "Cash invested", render: (l) => formatCurrency(l.roi.totalCashInvested) },
     { label: "Monthly P&I", render: (l) => formatCurrency(l.roi.monthlyMortgagePI) },
     { label: "IRR if sold yr 5", render: (_, i) => irrAt(i, 5) },

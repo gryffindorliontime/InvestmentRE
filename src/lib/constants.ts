@@ -49,4 +49,5 @@ export const DEFAULT_FILTERS: SearchFilters = {
   monthlyCashFlowMin: null,
   rentToPriceMin: null,
   unitCountMin: null,
+  meetsTargetOnly: false,
 };

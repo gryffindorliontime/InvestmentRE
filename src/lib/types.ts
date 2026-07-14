@@ -133,17 +133,30 @@ export interface FinancingAssumptions {
   vacancyPct: number; // e.g. 0.05, applied to gross rent
   maintenanceCapexPct: number; // e.g. 0.10, applied to gross rent
   propertyMgmtPct: number; // e.g. 0.08, applied to gross rent (0 to disable)
-  annualInsuranceEstimate: number; // flat $/yr, editable
+  // Flat $/yr override; null = estimate per listing from state averages and
+  // home type/value (lib/insurance.ts).
+  annualInsuranceEstimate: number | null;
   // (Property tax is not an assumption: it comes from the listing when
   // reported, otherwise it's estimated per city/state in lib/propertyTax.ts.)
   rentGrowthPct: number; // e.g. 0.03, annual rent/NOI growth used in multi-year projections
   sellingCostsPct: number; // e.g. 0.06, agent commission + closing costs on the eventual sale
+  // Target cash-on-cash return used to reverse-solve each listing's
+  // "price to hit target" and the meets-target shortlist filter.
+  requiredReturnPct: number; // e.g. 0.08
 }
 
 export interface ROIResult {
   monthlyRent: number;
   annualRent: number;
   annualPropertyTax: number; // actual from listing, or city/state estimate
+  annualInsurance: number; // user override, or local estimate (lib/insurance.ts)
+  insuranceSource: "override" | "state" | "default";
+  // Purchase price at which this listing would hit the required
+  // cash-on-cash return under the same assumptions and rent. Null when no
+  // price achieves it (rent can't cover the price-independent costs).
+  targetPrice: number | null;
+  // True when the asking price already meets the required return.
+  meetsRequiredReturn: boolean;
   annualOperatingExpenses: number;
   noi: number; // net operating income (annual)
   capRatePct: number;
@@ -198,6 +211,9 @@ export interface SearchFilters {
   monthlyCashFlowMin: number | null;
   rentToPriceMin: number | null;
   unitCountMin: number | null;
+  // Shortlist: only listings whose asking price already meets the required
+  // return (assumptions.requiredReturnPct).
+  meetsTargetOnly: boolean;
 }
 
 export type SortKey =
@@ -207,6 +223,7 @@ export type SortKey =
   | "monthlyCashFlow"
   | "rentToPricePct"
   | "monthlyRent"
+  | "targetPrice"
   | "daysOnMarket";
 
 export interface SortState {
