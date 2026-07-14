@@ -267,6 +267,13 @@ export function PropertyDetailDrawer({
                 </button>
               </div>
             ))}
+          {property.taxHistory?.length === 0 && (
+            <p className="mt-1 text-xs text-slate-400">
+              {(property.assessmentHistory?.length ?? 0) > 0
+                ? "Assessed values are on file but no tax totals — the ROI uses the local-rate estimate."
+                : "RentCast has no county tax data for this address (coverage varies by county) — the ROI uses the local-rate estimate."}
+            </p>
+          )}
           {property.taxHistory && property.taxHistory.length > 0 && (
             <div className="mt-2">
               <p className="mb-1 text-xs font-medium text-slate-600">Property taxes by year</p>

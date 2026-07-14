@@ -281,9 +281,15 @@ export default function Home() {
       const res = await fetch(`/api/tax-record?${qs.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to fetch tax record");
-      if (!data.record) throw new Error("No county tax records found for this address.");
 
-      setTaxOverrides((prev) => ({ ...prev, [property.id]: data.record }));
+      // A null record means RentCast has no county tax data for this address
+      // (coverage is regional) — store an empty record so the drawer explains
+      // that instead of presenting it as a failed lookup, and so reopening
+      // the listing doesn't look like the fetch never ran.
+      setTaxOverrides((prev) => ({
+        ...prev,
+        [property.id]: data.record ?? { taxHistory: [], assessmentHistory: [] },
+      }));
     } catch (err) {
       setFetchTaxError(err instanceof Error ? err.message : "Failed to fetch tax record");
     } finally {
