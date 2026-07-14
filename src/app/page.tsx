@@ -180,11 +180,16 @@ export default function Home() {
     const deduped = Array.from(new Map(collected.map((entry) => [entry.property.id, entry])).values());
 
     setRegionErrors(errors);
-    // Only replace what's on screen if at least one region actually returned.
-    // When every region errors out, keep the current results (mock or a prior
-    // live search) instead of wiping them for an empty table.
+    // Only replace what's on screen if at least one region actually returned
+    // listings. When every region errors out — or they all "succeed" with 0
+    // results (e.g. a misspelled city) — keep the current results (mock or a
+    // prior live search) instead of wiping them for an empty table.
     if (errors.length === regions.length && regions.length > 0) {
       setLiveError("All regions failed to search.");
+    } else if (deduped.length === 0) {
+      setLiveError(
+        "Search returned 0 active listings. Check the spelling, or try a nearby zip or county."
+      );
     } else {
       setLiveError(null);
       setLiveEntries(deduped);
