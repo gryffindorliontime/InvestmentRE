@@ -12,7 +12,6 @@ export async function GET(request: NextRequest) {
   const city = params.get("city");
   const state = params.get("state");
   const zip = params.get("zip");
-  const county = params.get("county");
   const homeType = params.get("homeType") as HomeType | null;
   const beds = params.get("beds");
   const baths = params.get("baths");
@@ -30,8 +29,7 @@ export async function GET(request: NextRequest) {
       zip,
       perUnitBeds({ beds: bedsNum, unitCount: unitCountNum }),
       city,
-      state,
-      county ?? undefined
+      state
     );
     const rentEstimate = await getRentEstimate(
       {
