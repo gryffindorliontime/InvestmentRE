@@ -126,17 +126,28 @@ export default function Home() {
     [allListings, compareIds]
   );
 
-  // Opening a listing automatically pulls its county tax record (RentCast,
-  // 1 API call — live listings only) and FEMA flood zone (free) so the ROI
-  // uses the real tax bill and flood warnings appear without extra clicks.
-  // The refs make each fetch once-per-property, so a failed lookup doesn't
-  // retry in a loop (the drawer offers a manual retry instead).
+  // Opening a listing automatically pulls its RentCast rent estimate (AVM
+  // with comps, 1 API call), county tax record (RentCast, 1 API call) and
+  // FEMA flood zone (free) so the ROI runs on RentCast's rent + the real tax
+  // bill, and flood warnings appear — all without extra clicks. Live
+  // listings only for the RentCast lookups. The refs make each fetch
+  // once-per-property, so a failed lookup doesn't retry in a loop (the
+  // drawer offers a manual retry instead).
+  const rentAutoFetched = useRef(new Set<string>());
   const taxAutoFetched = useRef(new Set<string>());
   const floodAutoFetched = useRef(new Set<string>());
   const selectedForAutoFetch = selectedListing;
   useEffect(() => {
     if (!selectedForAutoFetch) return;
-    const { property } = selectedForAutoFetch;
+    const { property, rentEstimate } = selectedForAutoFetch;
+    if (
+      property.source === "rentcast" &&
+      rentEstimate.method !== "comps" &&
+      !rentAutoFetched.current.has(property.id)
+    ) {
+      rentAutoFetched.current.add(property.id);
+      handleFetchLiveComps(selectedForAutoFetch);
+    }
     if (
       property.source === "rentcast" &&
       !property.taxHistory &&
@@ -219,10 +230,9 @@ export default function Home() {
     } else {
       setLiveError(null);
       setLiveEntries(deduped);
-      // Rent estimates are re-derived per search; tax records and flood
-      // zones are facts about the property/location keyed by stable
-      // address-based ids, so they persist across searches to save lookups.
-      setRentOverrides({});
+      // Fetched RentCast rent estimates, tax records, and flood zones are
+      // facts keyed by stable address-based ids — they persist across
+      // searches so already-viewed properties don't re-spend API calls.
       switchDataSource("live");
     }
     setLiveLoading(false);
