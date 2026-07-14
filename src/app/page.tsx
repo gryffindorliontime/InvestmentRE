@@ -10,7 +10,7 @@ import { PropertyDetailDrawer } from "@/components/PropertyDetailDrawer";
 import { ResultsTable } from "@/components/ResultsTable";
 import { DEFAULT_FILTERS } from "@/lib/constants";
 import { exportListingPdf } from "@/lib/pdfExport";
-import { DEFAULT_ASSUMPTIONS } from "@/lib/roi";
+import { computeROI, DEFAULT_ASSUMPTIONS } from "@/lib/roi";
 import {
   applyFilters,
   buildEnrichedListings,
@@ -268,10 +268,9 @@ export default function Home() {
     }
   }
 
-  // Bulk-upgrade the rents in the current (filtered, sorted) view to
-  // RentCast AVM estimates — 1 API call per listing, so it's an explicit
-  // button with the cost on the label, capped per click, top of the sort
-  // order first. Narrowing filters before clicking narrows the spend.
+  // Bulk-upgrade rents to RentCast AVM estimates — 1 API call per listing,
+  // so it's an explicit button with the cost on the label, capped per click,
+  // top of the sort order first. Narrowing filters narrows the spend.
   const AVM_BATCH_LIMIT = 50;
   const avmCandidates = useMemo(
     () =>
@@ -281,8 +280,19 @@ export default function Home() {
     [dataSource, sorted]
   );
 
-  async function handleLoadAvmRents() {
-    const batch = avmCandidates.slice(0, AVM_BATCH_LIMIT);
+  function handleLoadAvmRents() {
+    void runAvmBatch(avmCandidates);
+  }
+
+  async function runAvmBatch(entries: { property: Property; rentEstimate: RentEstimate }[]) {
+    const batch = entries
+      .filter(
+        (e) =>
+          e.property.source === "rentcast" &&
+          e.rentEstimate.method !== "comps" &&
+          !rentOverrides[e.property.id]
+      )
+      .slice(0, AVM_BATCH_LIMIT);
     if (batch.length === 0 || avmProgress) return;
     setAvmProgress({ done: 0, total: batch.length });
 
@@ -373,10 +383,42 @@ export default function Home() {
     }
   }
 
-  function handleExportPdf(listing: EnrichedListing) {
-    // Fire-and-forget: generation is local and near-instant; surface failures
-    // in the console rather than blocking the UI.
-    exportListingPdf(listing, assumptions).catch((err) => console.error("PDF export failed:", err));
+  async function handleExportPdf(listing: EnrichedListing) {
+    // A report should carry RentCast's AVM rent, not the free local baseline
+    // — fetch it first when this listing hasn't loaded one yet (1 API call;
+    // the result is kept, so the table/drawer upgrade too and a re-export is
+    // free). If the fetch fails, export with the baseline rather than block.
+    let effective = listing;
+    if (listing.property.source === "rentcast" && listing.rentEstimate.method !== "comps") {
+      try {
+        const { property } = listing;
+        const qs = new URLSearchParams({
+          address: property.address,
+          city: property.city,
+          state: property.state,
+          zip: property.zip,
+          homeType: property.homeType,
+          beds: String(property.beds),
+          baths: String(property.baths),
+          sqft: String(property.sqft),
+          unitCount: String(property.unitCount),
+        });
+        const res = await fetch(`/api/rent-estimate?${qs.toString()}`);
+        const data = await res.json();
+        if (res.ok) {
+          rentAutoFetched.current.add(property.id);
+          setRentOverrides((prev) => ({ ...prev, [property.id]: data.rentEstimate }));
+          effective = {
+            property,
+            rentEstimate: data.rentEstimate,
+            roi: computeROI(property, data.rentEstimate.monthlyRent, assumptions),
+          };
+        }
+      } catch {
+        // Fall through with the baseline estimate.
+      }
+    }
+    exportListingPdf(effective, assumptions).catch((err) => console.error("PDF export failed:", err));
   }
 
   return (
