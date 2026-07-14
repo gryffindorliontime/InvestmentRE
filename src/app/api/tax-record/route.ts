@@ -16,7 +16,22 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const record = await getPropertyTaxRecord(`${address}, ${city}, ${state} ${zip}`);
+    // County records are often keyed slightly differently than the listing
+    // address: unit designators ("28 Mase Ave, # Ab") and building ranges
+    // ("110-112 Berry St") usually record under the bare/first street
+    // address. Try progressively simpler forms; each retry costs 1 API call
+    // and only runs on a miss.
+    const street = address.split(",")[0].trim();
+    const candidates = [address];
+    if (street !== address) candidates.push(street);
+    const range = street.match(/^(\d+)-\d+(\s+.*)$/);
+    if (range) candidates.push(`${range[1]}${range[2]}`);
+
+    let record = null;
+    for (const candidate of candidates) {
+      record = await getPropertyTaxRecord(`${candidate}, ${city}, ${state} ${zip}`);
+      if (record) break;
+    }
     // record is null when RentCast has no county tax data for the address —
     // a valid outcome, not an error.
     return NextResponse.json({ record });

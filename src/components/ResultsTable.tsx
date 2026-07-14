@@ -1,7 +1,7 @@
 "use client";
 
 import { ConfidenceBadge } from "./ConfidenceBadge";
-import { buildRealtorSearchUrl, buildZillowSearchUrl } from "@/lib/externalLinks";
+import { buildZillowSearchUrl } from "@/lib/externalLinks";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { EnrichedListing } from "@/lib/searchEngine";
 import type { SortKey, SortState } from "@/lib/types";
@@ -103,6 +103,20 @@ export function ResultsTable({
                   {property.city}, {property.state} {property.zip} · {property.homeType} ·{" "}
                   {property.beds > 0 ? `${property.beds}bd/${property.baths}ba` : "—"} ·{" "}
                   {property.sqft > 0 ? `${property.sqft.toLocaleString()} sqft` : "—"}
+                  {property.floodZone &&
+                    (property.floodZone.riskLevel === "High" ||
+                      property.floodZone.riskLevel === "Moderate") && (
+                      <span
+                        className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                          property.floodZone.riskLevel === "High"
+                            ? "bg-rose-100 text-rose-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                        title={`FEMA flood zone ${property.floodZone.zone} — ${property.floodZone.riskLevel.toLowerCase()} risk`}
+                      >
+                        ⚠ Flood {property.floodZone.zone}
+                      </span>
+                    )}
                 </div>
                 <div className="mt-1 flex gap-2 text-xs">
                   <a
@@ -113,16 +127,6 @@ export function ResultsTable({
                     className="text-blue-600 hover:underline"
                   >
                     Zillow ↗
-                  </a>
-                  <a
-                    href={buildRealtorSearchUrl(property)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-blue-600 hover:underline"
-                    title="Find this listing on Realtor.com (opens a Google search for the exact address)"
-                  >
-                    Realtor.com ↗
                   </a>
                   <button
                     onClick={(e) => {

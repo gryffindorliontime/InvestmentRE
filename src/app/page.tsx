@@ -126,6 +126,32 @@ export default function Home() {
     [allListings, compareIds]
   );
 
+  // Opening a listing automatically pulls its county tax record (RentCast,
+  // 1 API call — live listings only) and FEMA flood zone (free) so the ROI
+  // uses the real tax bill and flood warnings appear without extra clicks.
+  // The refs make each fetch once-per-property, so a failed lookup doesn't
+  // retry in a loop (the drawer offers a manual retry instead).
+  const taxAutoFetched = useRef(new Set<string>());
+  const floodAutoFetched = useRef(new Set<string>());
+  const selectedForAutoFetch = selectedListing;
+  useEffect(() => {
+    if (!selectedForAutoFetch) return;
+    const { property } = selectedForAutoFetch;
+    if (
+      property.source === "rentcast" &&
+      !property.taxHistory &&
+      !taxAutoFetched.current.has(property.id)
+    ) {
+      taxAutoFetched.current.add(property.id);
+      handleFetchTaxRecord(selectedForAutoFetch);
+    }
+    if (!property.floodZone && !floodAutoFetched.current.has(property.id)) {
+      floodAutoFetched.current.add(property.id);
+      handleFetchFloodZone(selectedForAutoFetch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedForAutoFetch?.property.id]);
+
   function toggleCompare(id: string) {
     setCompareIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < MAX_COMPARE ? [...prev, id] : prev
@@ -193,8 +219,10 @@ export default function Home() {
     } else {
       setLiveError(null);
       setLiveEntries(deduped);
+      // Rent estimates are re-derived per search; tax records and flood
+      // zones are facts about the property/location keyed by stable
+      // address-based ids, so they persist across searches to save lookups.
       setRentOverrides({});
-      setTaxOverrides({});
       switchDataSource("live");
     }
     setLiveLoading(false);

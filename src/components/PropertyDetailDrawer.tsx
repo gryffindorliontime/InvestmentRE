@@ -1,7 +1,7 @@
 "use client";
 
 import { ConfidenceBadge } from "./ConfidenceBadge";
-import { buildRealtorSearchUrl, buildZillowSearchUrl } from "@/lib/externalLinks";
+import { buildZillowSearchUrl } from "@/lib/externalLinks";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { buildProjection } from "@/lib/projection";
 import { getLocalTaxRate } from "@/lib/propertyTax";
@@ -94,15 +94,6 @@ export function PropertyDetailDrawer({
           >
             View on Zillow ↗
           </a>
-          <a
-            href={buildRealtorSearchUrl(property)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-blue-600 hover:underline"
-            title="Find this listing on Realtor.com (opens a Google search for the exact address)"
-          >
-            View on Realtor.com ↗
-          </a>
           <button
             onClick={() => onExportPdf(listing)}
             className="font-medium text-blue-600 hover:underline"
@@ -147,16 +138,17 @@ export function PropertyDetailDrawer({
                 </p>
               )}
             </div>
+          ) : fetchingFloodZone ? (
+            <p className="py-1.5 text-xs text-slate-400">Checking FEMA flood maps…</p>
           ) : (
-            <div className="mt-2">
+            <div className="flex items-center justify-between py-1.5 text-xs">
+              <span className="text-rose-600">{fetchFloodZoneError ?? "Flood zone not loaded."}</span>
               <button
                 onClick={() => onFetchFloodZone(listing)}
-                disabled={fetchingFloodZone}
-                className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="font-medium text-blue-600 hover:underline"
               >
-                {fetchingFloodZone ? "Checking FEMA flood maps…" : "Get FEMA flood zone (free)"}
+                Retry FEMA lookup
               </button>
-              {fetchFloodZoneError && <p className="mt-1 text-xs text-rose-600">{fetchFloodZoneError}</p>}
             </div>
           )}
         </section>
@@ -253,20 +245,20 @@ export function PropertyDetailDrawer({
 
         <section className="mt-4">
           <h3 className="text-sm font-semibold text-slate-800">County tax records</h3>
-          {canFetchTaxRecord && (
-            <div className="mt-2">
-              <button
-                onClick={() => onFetchTaxRecord(listing)}
-                disabled={fetchingTaxRecord}
-                className="w-full rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {fetchingTaxRecord ? "Fetching tax record…" : "Get county tax record (1 API call)"}
-              </button>
-              {fetchTaxRecordError && (
-                <p className="mt-1 text-xs text-rose-600">{fetchTaxRecordError}</p>
-              )}
-            </div>
-          )}
+          {canFetchTaxRecord &&
+            (fetchingTaxRecord ? (
+              <p className="mt-1 text-xs text-slate-400">Fetching county tax record…</p>
+            ) : (
+              <div className="mt-1 flex items-center justify-between text-xs">
+                <span className="text-rose-600">{fetchTaxRecordError ?? "Tax record not loaded."}</span>
+                <button
+                  onClick={() => onFetchTaxRecord(listing)}
+                  className="font-medium text-blue-600 hover:underline"
+                >
+                  Retry (1 API call)
+                </button>
+              </div>
+            ))}
           {property.taxHistory && property.taxHistory.length > 0 && (
             <div className="mt-2">
               <p className="mb-1 text-xs font-medium text-slate-600">Property taxes by year</p>

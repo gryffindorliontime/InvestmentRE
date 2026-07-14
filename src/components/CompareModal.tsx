@@ -1,6 +1,6 @@
 "use client";
 
-import { buildRealtorSearchUrl, buildZillowSearchUrl } from "@/lib/externalLinks";
+import { buildZillowSearchUrl } from "@/lib/externalLinks";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { buildProjection } from "@/lib/projection";
 import type { EnrichedListing } from "@/lib/searchEngine";
@@ -88,15 +88,6 @@ export function CompareModal({ listings, assumptions, onClose, onRemove }: Compa
                       className="text-blue-600 hover:underline"
                     >
                       Zillow ↗
-                    </a>
-                    <a
-                      href={buildRealtorSearchUrl(l.property)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                      title="Find this listing on Realtor.com (opens a Google search for the exact address)"
-                    >
-                      Realtor.com ↗
                     </a>
                     <button
                       onClick={() => onRemove(l.property.id)}
