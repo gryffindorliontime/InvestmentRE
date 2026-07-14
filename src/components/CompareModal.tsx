@@ -94,6 +94,7 @@ export function CompareModal({ listings, assumptions, onClose, onRemove }: Compa
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
+                      title="Find this listing on Realtor.com (opens a Google search for the exact address)"
                     >
                       Realtor.com ↗
                     </a>

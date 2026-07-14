@@ -120,6 +120,7 @@ export function ResultsTable({
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
                     className="text-blue-600 hover:underline"
+                    title="Find this listing on Realtor.com (opens a Google search for the exact address)"
                   >
                     Realtor.com ↗
                   </a>

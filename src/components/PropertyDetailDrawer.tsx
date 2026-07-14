@@ -99,6 +99,7 @@ export function PropertyDetailDrawer({
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium text-blue-600 hover:underline"
+            title="Find this listing on Realtor.com (opens a Google search for the exact address)"
           >
             View on Realtor.com ↗
           </a>
