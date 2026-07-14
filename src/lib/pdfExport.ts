@@ -137,7 +137,7 @@ export async function buildListingPdf(
           taxRate.source === "city" ? property.city : taxRate.source === "state" ? property.state : "default"
         } rate)`;
 
-  kvSection("Rent estimate", [
+  const rentRows: [string, string][] = [
     [
       "Estimated monthly rent (total)",
       `${formatCurrency(rentEstimate.monthlyRent)}/mo${
@@ -150,7 +150,14 @@ export async function buildListingPdf(
         rentEstimate.compsUsed.length > 0 ? ` · ${rentEstimate.compsUsed.length} comps` : ""
       }`,
     ],
-  ]);
+  ];
+  if (rentEstimate.rentRangeLow !== undefined && rentEstimate.rentRangeHigh !== undefined) {
+    rentRows.push([
+      "RentCast range",
+      `${formatCurrency(rentEstimate.rentRangeLow)} – ${formatCurrency(rentEstimate.rentRangeHigh)}/mo`,
+    ]);
+  }
+  kvSection("Rent estimate", rentRows);
 
   kvSection("Returns", [
     ["Annual rent (gross)", formatCurrency(roi.annualRent)],

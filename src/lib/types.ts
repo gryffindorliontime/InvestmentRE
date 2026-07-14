@@ -119,6 +119,10 @@ export interface RentEstimate {
   zipBaselineWeight: number;
   zipBaselineMonthlyRent: number;
   confidence: "high" | "medium" | "low";
+  // RentCast's AVM error bar around monthlyRent — present only on live
+  // comps-based estimates (the local blend has no modeled range).
+  rentRangeLow?: number;
+  rentRangeHigh?: number;
 }
 
 export interface FinancingAssumptions {

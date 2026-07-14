@@ -248,6 +248,8 @@ export function mapAvmToRentEstimate(
   return {
     monthlyRent: raw.rent,
     perUnitMonthlyRent: Math.round(raw.rent / safeUnitCount),
+    rentRangeLow: raw.rentRangeLow,
+    rentRangeHigh: raw.rentRangeHigh,
     method: "comps",
     compsUsed: comps,
     compsWeight: 1,

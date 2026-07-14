@@ -164,6 +164,12 @@ export function PropertyDetailDrawer({
               {property.unitCount > 1 ? `total across ${property.unitCount} units` : "total"}
             </span>
           </p>
+          {rentEstimate.rentRangeLow !== undefined && rentEstimate.rentRangeHigh !== undefined && (
+            <p className="text-xs text-slate-500">
+              RentCast range: {formatCurrency(rentEstimate.rentRangeLow)}–
+              {formatCurrency(rentEstimate.rentRangeHigh)}/mo
+            </p>
+          )}
           {property.unitCount > 1 && (
             <Row label="Avg rent per unit" value={`${formatCurrency(rentEstimate.perUnitMonthlyRent)}/mo`} />
           )}
