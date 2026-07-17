@@ -1,18 +1,12 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
 import { findUserByEmail, verifyPassword } from "./lib/userStore";
 
-// Two sign-in paths: Google OAuth, and email/password against the demo
-// account store in lib/userStore.ts (see lib/userSeed.ts for the seeded
-// accounts). Google requires GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET; both
-// paths need AUTH_SECRET for session/token signing. See .env.local.example.
+// Email/password only, checked against the account store in
+// lib/userStore.ts (see lib/userSeed.ts for the seeded accounts). Needs
+// AUTH_SECRET for session/token signing. See .env.local.example.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
     Credentials({
       name: "Email and password",
       credentials: {

@@ -1,12 +1,7 @@
 import { CredentialsSignInForm } from "@/components/CredentialsSignInForm";
-import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  Configuration: "Google sign-in isn't configured yet (missing client ID/secret on the server).",
-  AccessDenied: "Access was denied.",
-  OAuthSignin: "Couldn't start the Google sign-in flow. Try again.",
-  OAuthCallback: "Google sign-in failed. Try again.",
-  OAuthAccountNotLinked: "That Google account is already linked to a different sign-in method.",
+  Configuration: "Sign-in isn't configured correctly on the server.",
   CredentialsSignin: "Incorrect email or password.",
 };
 
@@ -16,7 +11,6 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
   return (
     <div className="flex min-h-screen flex-1 items-center justify-center bg-slate-100 px-4">
@@ -33,19 +27,6 @@ export default async function LoginPage({
         <div className="mt-6">
           <CredentialsSignInForm />
         </div>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-200" />
-          <span className="text-xs text-slate-400">or</span>
-          <div className="h-px flex-1 bg-slate-200" />
-        </div>
-
-        <GoogleSignInButton />
-        {!googleConfigured && (
-          <p className="mt-2 text-center text-[11px] text-amber-600">
-            Google sign-in isn&apos;t configured yet — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.
-          </p>
-        )}
       </div>
     </div>
   );
