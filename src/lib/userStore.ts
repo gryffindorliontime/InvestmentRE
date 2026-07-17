@@ -3,6 +3,7 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
+import { syncPasswordHashToGitHub } from "./githubUserSync";
 import { SEED_USERS, type SeedUser } from "./userSeed";
 
 // Credentials-provider user store. There's no database here, so this reads
@@ -62,17 +63,25 @@ export function verifyPassword(user: StoredUser, password: string): boolean {
 
 export interface UpdatePasswordResult {
   updated: boolean;
-  // false = only changed in this server instance's memory (no writable
-  // disk) — the caller should tell the user this may not stick.
+  // Local file write succeeded — durable on a normal filesystem, only
+  // instance-local on serverless (see module comment above).
   durable: boolean;
+  // Committed to GitHub (see githubUserSync.ts) — durable everywhere once
+  // the resulting auto-deploy finishes, regardless of the platform's
+  // filesystem. False when GITHUB_TOKEN isn't configured or the commit
+  // failed; this is best-effort on top of, not instead of, the local write.
+  syncedToGitHub: boolean;
 }
 
-export function updatePassword(email: string, newPassword: string): UpdatePasswordResult {
+export async function updatePassword(email: string, newPassword: string): Promise<UpdatePasswordResult> {
   const users = loadUsers();
   const normalized = email.trim().toLowerCase();
   const user = users.find((u) => u.email.toLowerCase() === normalized);
-  if (!user) return { updated: false, durable: false };
+  if (!user) return { updated: false, durable: false, syncedToGitHub: false };
 
-  user.passwordHash = bcrypt.hashSync(newPassword, 10);
-  return { updated: true, durable: saveToDisk(users) };
+  const passwordHash = bcrypt.hashSync(newPassword, 10);
+  user.passwordHash = passwordHash;
+  const durable = saveToDisk(users);
+  const syncedToGitHub = await syncPasswordHashToGitHub(user.email, passwordHash);
+  return { updated: true, durable, syncedToGitHub };
 }

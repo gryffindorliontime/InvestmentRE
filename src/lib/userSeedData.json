@@ -1,0 +1,17 @@
+[
+  {
+    "email": "rohanamin789@gmail.com",
+    "name": "Rohan Amin",
+    "passwordHash": "$2b$10$A/hFIpVmovM2xMbI82lsM.HG6Lv5rwfMHpbUVR6Y0SImcbog2tdS."
+  },
+  {
+    "email": "mamin123@yahoo.com",
+    "name": "M Amin",
+    "passwordHash": "$2b$10$A/hFIpVmovM2xMbI82lsM.HG6Lv5rwfMHpbUVR6Y0SImcbog2tdS."
+  },
+  {
+    "email": "amiamin2003@yahoo.com",
+    "name": "Ami Amin",
+    "passwordHash": "$2b$10$A/hFIpVmovM2xMbI82lsM.HG6Lv5rwfMHpbUVR6Y0SImcbog2tdS."
+  }
+]

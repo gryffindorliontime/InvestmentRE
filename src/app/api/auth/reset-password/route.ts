@@ -18,10 +18,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
   }
 
-  const result = updatePassword(email, password);
+  const result = await updatePassword(email, password);
   if (!result.updated) {
     return NextResponse.json({ error: "Account not found." }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true, durable: result.durable });
+  return NextResponse.json({ ok: true, durable: result.durable, syncedToGitHub: result.syncedToGitHub });
 }
