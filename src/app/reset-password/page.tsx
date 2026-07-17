@@ -10,7 +10,11 @@ function ResetPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState<{ durable: boolean; syncedToGitHub: boolean } | null>(null);
+  const [done, setDone] = useState<{
+    persistedToDatabase: boolean;
+    durable: boolean;
+    syncedToGitHub: boolean;
+  } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +34,11 @@ function ResetPasswordForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to reset password.");
-      setDone({ durable: data.durable, syncedToGitHub: data.syncedToGitHub });
+      setDone({
+        persistedToDatabase: data.persistedToDatabase,
+        durable: data.durable,
+        syncedToGitHub: data.syncedToGitHub,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset password.");
     } finally {
@@ -52,7 +60,11 @@ function ResetPasswordForm() {
         <p className="rounded-md bg-emerald-50 px-3 py-3 text-center text-sm text-emerald-700">
           Password updated. You can sign in with your new password now.
         </p>
-        {done.syncedToGitHub ? (
+        {done.persistedToDatabase ? (
+          <p className="rounded-md bg-emerald-50 px-3 py-2 text-center text-xs text-emerald-700">
+            Saved to the database — this change is permanent.
+          </p>
+        ) : done.syncedToGitHub ? (
           <p className="rounded-md bg-emerald-50 px-3 py-2 text-center text-xs text-emerald-700">
             This change was committed to the app&apos;s source and will be permanent everywhere once the
             next deploy finishes (usually under a minute).

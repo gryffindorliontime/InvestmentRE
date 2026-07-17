@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     .toLowerCase();
 
   if (email) {
-    const user = findUserByEmail(email);
+    const user = await findUserByEmail(email);
     if (user) {
       const token = createResetToken(user.email);
       const resetUrl = new URL(`/reset-password?token=${token}`, request.nextUrl.origin).toString();

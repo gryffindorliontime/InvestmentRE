@@ -3,23 +3,23 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
+import { dbFindUserByEmail, dbUpdatePassword, isDatabaseConfigured } from "./db";
 import { syncPasswordHashToGitHub } from "./githubUserSync";
 import { SEED_USERS, type SeedUser } from "./userSeed";
 
-// Credentials-provider user store. There's no database here, so this reads
-// and writes a JSON file at the repo root (data/users.json, gitignored —
-// runtime password changes should never get committed). That file is
-// writable and durable on a normal filesystem (local dev, a VM, a
-// long-running container), so signup/reset there works exactly like a real
-// account system.
+// Credentials-provider user store, in priority order:
 //
-// On Vercel-style serverless, the filesystem is read-only outside /tmp:
-// writes below fail silently and the change only lives in this warm
-// instance's in-memory cache until the next cold start. updatePassword()
-// reports this via its `durable` flag so callers (the reset-password route)
-// can tell the user honestly rather than claim a permanent change that
-// isn't. The real fix for production is a database — this is the
-// zero-setup stand-in for local dev and demos.
+//   1. A real Postgres database (db.ts), whenever DATABASE_URL is set —
+//      genuinely durable, no caveats. Preferred whenever it's available.
+//   2. Otherwise, a JSON file at the repo root (data/users.json, gitignored)
+//      plus a best-effort commit to GitHub on password changes
+//      (githubUserSync.ts) — durable in local dev, and durable-with-a-lag in
+//      production if GITHUB_TOKEN is set, but neither is a real database.
+//
+// This lets the app run with zero setup (falls back to the file), work
+// correctly in local dev (file is genuinely durable there), and become a
+// real account system the moment DATABASE_URL is configured — no code
+// changes required to upgrade.
 export type StoredUser = SeedUser;
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -52,7 +52,9 @@ function loadUsers(): StoredUser[] {
   return cache;
 }
 
-export function findUserByEmail(email: string): StoredUser | undefined {
+export async function findUserByEmail(email: string): Promise<StoredUser | undefined> {
+  if (isDatabaseConfigured()) return dbFindUserByEmail(email);
+
   const normalized = email.trim().toLowerCase();
   return loadUsers().find((u) => u.email.toLowerCase() === normalized);
 }
@@ -63,25 +65,34 @@ export function verifyPassword(user: StoredUser, password: string): boolean {
 
 export interface UpdatePasswordResult {
   updated: boolean;
+  // True = a real database write succeeded — durable everywhere,
+  // immediately, no caveats. Only meaningful when a database is configured.
+  persistedToDatabase: boolean;
   // Local file write succeeded — durable on a normal filesystem, only
-  // instance-local on serverless (see module comment above).
+  // instance-local on serverless. Not attempted when a database is
+  // configured (the database path is used instead, see module comment).
   durable: boolean;
   // Committed to GitHub (see githubUserSync.ts) — durable everywhere once
-  // the resulting auto-deploy finishes, regardless of the platform's
-  // filesystem. False when GITHUB_TOKEN isn't configured or the commit
-  // failed; this is best-effort on top of, not instead of, the local write.
+  // the resulting auto-deploy finishes. Not attempted when a database is
+  // configured; otherwise best-effort on top of the local write.
   syncedToGitHub: boolean;
 }
 
 export async function updatePassword(email: string, newPassword: string): Promise<UpdatePasswordResult> {
+  const passwordHash = bcrypt.hashSync(newPassword, 10);
+
+  if (isDatabaseConfigured()) {
+    const updated = await dbUpdatePassword(email, passwordHash);
+    return { updated, persistedToDatabase: updated, durable: false, syncedToGitHub: false };
+  }
+
   const users = loadUsers();
   const normalized = email.trim().toLowerCase();
   const user = users.find((u) => u.email.toLowerCase() === normalized);
-  if (!user) return { updated: false, durable: false, syncedToGitHub: false };
+  if (!user) return { updated: false, persistedToDatabase: false, durable: false, syncedToGitHub: false };
 
-  const passwordHash = bcrypt.hashSync(newPassword, 10);
   user.passwordHash = passwordHash;
   const durable = saveToDisk(users);
   const syncedToGitHub = await syncPasswordHashToGitHub(user.email, passwordHash);
-  return { updated: true, durable, syncedToGitHub };
+  return { updated: true, persistedToDatabase: false, durable, syncedToGitHub };
 }

@@ -23,5 +23,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Account not found." }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true, durable: result.durable, syncedToGitHub: result.syncedToGitHub });
+  return NextResponse.json({
+    ok: true,
+    persistedToDatabase: result.persistedToDatabase,
+    durable: result.durable,
+    syncedToGitHub: result.syncedToGitHub,
+  });
 }
