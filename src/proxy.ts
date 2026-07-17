@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password"];
 
-// Gates every page and API route behind a Google session, except /login
-// itself and Auth.js's own /api/auth/* routes (which the sign-in flow
-// needs open to complete the OAuth handshake).
+// Gates every page and API route behind a session, except the sign-in and
+// password-recovery pages, and Auth.js's own /api/auth/* routes (which both
+// the OAuth handshake and the forgot/reset-password API routes live under —
+// all need to work for a signed-out visitor).
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
