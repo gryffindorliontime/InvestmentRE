@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { signOut, useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AssumptionsPanel } from "@/components/AssumptionsPanel";
 import { CompareModal } from "@/components/CompareModal";
@@ -43,6 +44,7 @@ type LiveEntry = { property: Property; rentEstimate: RentEstimate };
 // regions (1 API call each). No API call happens until the user searches —
 // deliberate, so idle visits to the deployed site don't burn RentCast quota.
 export default function Home() {
+  const { data: session } = useSession();
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [assumptions, setAssumptions] = useState<FinancingAssumptions>(DEFAULT_ASSUMPTIONS);
   const [sort, setSort] = useState<SortState>({ key: "capRatePct", direction: "desc" });
@@ -432,6 +434,17 @@ export default function Home() {
               : "Showing sample listing data — search below to fetch live RentCast listings."}
           </p>
         </div>
+        {session?.user && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500">{session.user.email}</span>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="text-xs font-medium text-blue-600 hover:underline"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </header>
 
       <LiveSearchBar
