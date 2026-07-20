@@ -9,6 +9,7 @@ import { FilterPanel } from "@/components/FilterPanel";
 import { LiveSearchBar } from "@/components/LiveSearchBar";
 import { PropertyDetailDrawer } from "@/components/PropertyDetailDrawer";
 import { ProjectsBar } from "@/components/ProjectsBar";
+import { ProjectSummary } from "@/components/ProjectSummary";
 import { ResultsTable } from "@/components/ResultsTable";
 import { DEFAULT_FILTERS } from "@/lib/constants";
 import { exportListingPdf } from "@/lib/pdfExport";
@@ -96,7 +97,9 @@ export default function Home() {
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
   const [savedListings, setSavedListings] = useState<SavedListingRecord[]>([]);
-  const [showSaved, setShowSaved] = useState(false);
+  // "results" = Table/Map (governed by `view`); "saved" and "summary" are
+  // project-scoped tabs, only reachable with an active project.
+  const [contentTab, setContentTab] = useState<"results" | "saved" | "summary">("results");
   const savedIds = useMemo(() => new Set(savedListings.map((s) => s.propertyId)), [savedListings]);
 
   async function loadSavedListings(projectId: number) {
@@ -115,7 +118,7 @@ export default function Home() {
   // scratch mode: works exactly like the app did before projects existed.
   function selectProject(id: number | null, projectList: Project[] = projects) {
     setActiveProjectId(id);
-    setShowSaved(false);
+    setContentTab("results");
     if (id === null) {
       setSavedListings([]);
       return;
@@ -706,34 +709,48 @@ export default function Home() {
           <div className="flex items-center gap-1 border-b border-slate-200 bg-white px-3 py-1.5">
             <button
               onClick={() => {
-                setShowSaved(false);
+                setContentTab("results");
                 setView("table");
               }}
               className={`rounded px-2 py-1 text-xs font-medium ${
-                !showSaved && view === "table" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                contentTab === "results" && view === "table"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Table
             </button>
             <button
               onClick={() => {
-                setShowSaved(false);
+                setContentTab("results");
                 setView("map");
               }}
               className={`rounded px-2 py-1 text-xs font-medium ${
-                !showSaved && view === "map" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                contentTab === "results" && view === "map"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Map
             </button>
             {activeProjectId !== null && (
               <button
-                onClick={() => setShowSaved(true)}
+                onClick={() => setContentTab("saved")}
                 className={`rounded px-2 py-1 text-xs font-medium ${
-                  showSaved ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                  contentTab === "saved" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Saved ({savedListings.length})
+              </button>
+            )}
+            {activeProjectId !== null && (
+              <button
+                onClick={() => setContentTab("summary")}
+                className={`rounded px-2 py-1 text-xs font-medium ${
+                  contentTab === "summary" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Summary
               </button>
             )}
             <div className="ml-auto flex items-center gap-2">
@@ -770,7 +787,7 @@ export default function Home() {
             </div>
           </div>
 
-          {showSaved ? (
+          {contentTab === "saved" ? (
             <ResultsTable
               listings={sortListings(savedEnrichedListings, sort)}
               sort={sort}
@@ -784,6 +801,12 @@ export default function Home() {
               savedIds={savedIds}
               onToggleSave={handleToggleSave}
               canSave={activeProjectId !== null}
+            />
+          ) : contentTab === "summary" ? (
+            <ProjectSummary
+              projectName={projects.find((p) => p.id === activeProjectId)?.name ?? ""}
+              listings={savedEnrichedListings}
+              onSelect={(listing) => selectListing(listing.property.id)}
             />
           ) : view === "table" ? (
             <ResultsTable
