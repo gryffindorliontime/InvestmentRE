@@ -90,7 +90,7 @@ export function ProjectsBar({
                 <button onClick={() => onSelectProject(p.id)} className="flex-1 truncate text-left">
                   {p.name}
                 </button>
-                <span className="hidden gap-2 text-xs text-slate-400 group-hover:flex">
+                <span className="flex shrink-0 gap-2 text-xs text-slate-400">
                   <button
                     onClick={() => {
                       setRenamingId(p.id);
