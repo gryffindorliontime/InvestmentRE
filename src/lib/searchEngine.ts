@@ -1,3 +1,4 @@
+import { parseLocationQuery } from "./locationParse";
 import { getCompsForProperty, getRentBaselineForProperty, MOCK_PROPERTIES } from "./mockData";
 import { estimateRent } from "./rentEstimate";
 import { computeROI } from "./roi";
@@ -67,6 +68,37 @@ export function buildEnrichedListingsFromLive(
     const roi = computeROI(effectiveProperty, effectiveRentEstimate.monthlyRent, assumptions);
     return { property: effectiveProperty, rentEstimate: effectiveRentEstimate, roi };
   });
+}
+
+// Mock-mode stand-in for a live regional search: parses each typed region
+// the same way /api/search does (zip / "City, ST" / "Name County, ST") and
+// keeps any listing matching at least one of them. Never calls RentCast.
+// Mock properties don't carry a county field, so a county region falls back
+// to matching the whole state.
+export function filterListingsByRegions(
+  listings: EnrichedListing[],
+  regions: string[]
+): { listings: EnrichedListing[]; unparsedRegions: string[] } {
+  const unparsedRegions: string[] = [];
+  const parsedLocations = regions.flatMap((region) => {
+    const parsed = parseLocationQuery(region);
+    if (!parsed) {
+      unparsedRegions.push(region);
+      return [];
+    }
+    return [parsed];
+  });
+
+  const matched = listings.filter(({ property }) =>
+    parsedLocations.some((loc) => {
+      if (loc.zipCode) return property.zip === loc.zipCode;
+      if (loc.city) return property.city.toLowerCase() === loc.city.toLowerCase() && property.state === loc.state;
+      if (loc.county) return property.state === loc.state;
+      return false;
+    })
+  );
+
+  return { listings: matched, unparsedRegions };
 }
 
 function matchesRange(value: number, min: number | null, max: number | null): boolean {

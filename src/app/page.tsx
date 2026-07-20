@@ -8,14 +8,17 @@ import { CompareModal } from "@/components/CompareModal";
 import { FilterPanel } from "@/components/FilterPanel";
 import { LiveSearchBar } from "@/components/LiveSearchBar";
 import { PropertyDetailDrawer } from "@/components/PropertyDetailDrawer";
+import { ProjectsBar } from "@/components/ProjectsBar";
 import { ResultsTable } from "@/components/ResultsTable";
 import { DEFAULT_FILTERS } from "@/lib/constants";
 import { exportListingPdf } from "@/lib/pdfExport";
+import type { Project, SavedListingRecord } from "@/lib/projectsStore";
 import { computeROI, DEFAULT_ASSUMPTIONS } from "@/lib/roi";
 import {
   applyFilters,
   buildEnrichedListings,
   buildEnrichedListingsFromLive,
+  filterListingsByRegions,
   sortListings,
   type EnrichedListing,
 } from "@/lib/searchEngine";
@@ -54,6 +57,11 @@ export default function Home() {
   const [compareOpen, setCompareOpen] = useState(false);
 
   const [dataSource, setDataSource] = useState<"mock" | "live">("mock");
+  // What the Search button does next: mock-filters the local dataset (no
+  // RentCast calls) when true, calls the live API when false. Defaults on —
+  // no network call happens until the user explicitly flips this off.
+  const [mockDataOnly, setMockDataOnly] = useState(true);
+  const [mockRegionIds, setMockRegionIds] = useState<Set<string> | null>(null);
   const [liveEntries, setLiveEntries] = useState<LiveEntry[]>([]);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveLoadingProgress, setLiveLoadingProgress] = useState<{ done: number; total: number } | null>(
@@ -82,6 +90,180 @@ export default function Home() {
     setFetchFloodError(null);
   }
 
+  // --- Projects (saved searches/settings + bookmarked listings) --------------
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
+  const [savedListings, setSavedListings] = useState<SavedListingRecord[]>([]);
+  const [showSaved, setShowSaved] = useState(false);
+  const savedIds = useMemo(() => new Set(savedListings.map((s) => s.propertyId)), [savedListings]);
+
+  async function loadSavedListings(projectId: number) {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/listings`);
+      const data = await res.json();
+      if (res.ok) setSavedListings(data.listings);
+    } catch {
+      // Leave whatever was showing; the Saved tab will just look stale.
+    }
+  }
+
+  // Selecting a project loads its saved filters/assumptions/sort/view,
+  // replacing whatever's currently on screen — a project's DB row is the
+  // source of truth for its own content once it exists. "No project" is
+  // scratch mode: works exactly like the app did before projects existed.
+  function selectProject(id: number | null, projectList: Project[] = projects) {
+    setActiveProjectId(id);
+    setShowSaved(false);
+    if (id === null) {
+      setSavedListings([]);
+      return;
+    }
+    const project = projectList.find((p) => p.id === id);
+    if (project) {
+      setFilters(project.filters);
+      setAssumptions(project.assumptions);
+      setSort(project.sort);
+      setView(project.view);
+    }
+    loadSavedListings(id);
+  }
+
+  async function handleCreateProject(name: string) {
+    setProjectsError(null);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, filters, assumptions, sort, view }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create project");
+      setProjects((prev) => [data.project, ...prev]);
+      selectProject(data.project.id, [data.project, ...projects]);
+    } catch (err) {
+      setProjectsError(err instanceof Error ? err.message : "Failed to create project");
+    }
+  }
+
+  async function handleRenameProject(id: number, name: string) {
+    setProjectsError(null);
+    try {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to rename project");
+      setProjects((prev) => prev.map((p) => (p.id === id ? data.project : p)));
+    } catch (err) {
+      setProjectsError(err instanceof Error ? err.message : "Failed to rename project");
+    }
+  }
+
+  async function handleDeleteProject(id: number) {
+    setProjectsError(null);
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete project");
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      if (activeProjectId === id) selectProject(null);
+    } catch (err) {
+      setProjectsError(err instanceof Error ? err.message : "Failed to delete project");
+    }
+  }
+
+  async function handleToggleSave(listing: EnrichedListing) {
+    if (activeProjectId === null) return;
+    const { property, rentEstimate } = listing;
+    const alreadySaved = savedIds.has(property.id);
+    try {
+      if (alreadySaved) {
+        const res = await fetch(
+          `/api/projects/${activeProjectId}/listings/${encodeURIComponent(property.id)}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) throw new Error("Failed to unsave listing");
+        setSavedListings((prev) => prev.filter((s) => s.propertyId !== property.id));
+      } else {
+        const res = await fetch(`/api/projects/${activeProjectId}/listings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ property, rentEstimate }),
+        });
+        if (!res.ok) throw new Error("Failed to save listing");
+        setSavedListings((prev) => [
+          { propertyId: property.id, property, rentEstimate, createdAt: new Date().toISOString() },
+          ...prev,
+        ]);
+      }
+    } catch {
+      // Quiet failure — the star just won't have toggled; no dedicated
+      // error slot exists for this low-stakes an action.
+    }
+  }
+
+  // Saved listings' ROI is recomputed against *current* assumptions, not
+  // frozen at save time — assumptions are meant to be live/adjustable, and a
+  // saved listing you're revisiting should reflect today's numbers.
+  const savedEnrichedListings: EnrichedListing[] = useMemo(
+    () =>
+      savedListings.map((s) => ({
+        property: s.property,
+        rentEstimate: s.rentEstimate,
+        roi: computeROI(s.property, s.rentEstimate.monthlyRent, assumptions),
+      })),
+    [savedListings, assumptions]
+  );
+
+  const projectsFetched = useRef(false);
+  useEffect(() => {
+    if (!session?.user || projectsFetched.current) return;
+    projectsFetched.current = true;
+    setProjectsLoading(true);
+    fetch("/api/projects")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.projects) {
+          setProjects(data.projects);
+          // A URL-shared link may name a project to open on load — only
+          // meaningful once we know it's actually one of this user's.
+          const urlProjectId = parseDashboardState(window.location.search).projectId;
+          if (urlProjectId !== null && data.projects.some((p: Project) => p.id === urlProjectId)) {
+            selectProject(urlProjectId, data.projects);
+          }
+        }
+      })
+      .catch(() => setProjectsError("Failed to load projects."))
+      .finally(() => setProjectsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user]);
+
+  // Keeps the active project's saved search/settings in sync with whatever's
+  // on screen — mirrors the URL-persistence effect below, just against the
+  // database instead of the address bar. Harmless no-op PATCH on the first
+  // fire right after selecting a project (writes back what was just loaded).
+  useEffect(() => {
+    if (activeProjectId === null) return;
+    const handle = setTimeout(() => {
+      fetch(`/api/projects/${activeProjectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filters, assumptions, sort, view }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.project) setProjects((prev) => prev.map((p) => (p.id === data.project.id ? data.project : p)));
+        })
+        .catch(() => {});
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [activeProjectId, filters, assumptions, sort, view]);
+  // ---------------------------------------------------------------------------
+
   // --- URL persistence -------------------------------------------------------
   // Restore once on mount (in an effect rather than the initializer so the
   // server-rendered HTML and first client render match), then mirror state
@@ -100,30 +282,47 @@ export default function Home() {
   useEffect(() => {
     if (!urlRestored.current) return;
     const handle = setTimeout(() => {
-      const query = serializeDashboardState({ filters, assumptions, sort, view });
+      const query = serializeDashboardState({ filters, assumptions, sort, view, projectId: activeProjectId });
       window.history.replaceState(null, "", query || window.location.pathname);
     }, 300);
     return () => clearTimeout(handle);
-  }, [filters, assumptions, sort, view]);
+  }, [filters, assumptions, sort, view, activeProjectId]);
   // ---------------------------------------------------------------------------
 
   const mockListings = useMemo(
     () => buildEnrichedListings(assumptions, floodOverrides),
     [assumptions, floodOverrides]
   );
+  // Narrowed by a mock-mode region search (see handleLiveSearch) — stores
+  // just the matched ids so ROI stays reactive to assumption changes instead
+  // of freezing at search time. Null means no region search yet: show
+  // everything.
+  const mockSearchListings = useMemo(
+    () => (mockRegionIds ? mockListings.filter((l) => mockRegionIds.has(l.property.id)) : mockListings),
+    [mockListings, mockRegionIds]
+  );
   const liveListings = useMemo(
     () =>
       buildEnrichedListingsFromLive(liveEntries, assumptions, rentOverrides, taxOverrides, floodOverrides),
     [liveEntries, assumptions, rentOverrides, taxOverrides, floodOverrides]
   );
-  const allListings = dataSource === "live" ? liveListings : mockListings;
+  const allListings = dataSource === "live" ? liveListings : mockSearchListings;
 
   const filtered = useMemo(() => applyFilters(allListings, filters), [allListings, filters]);
   const sorted = useMemo(() => sortListings(filtered, sort), [filtered, sort]);
-  const selectedListing = useMemo(
-    () => allListings.find((l) => l.property.id === selectedId) ?? null,
-    [allListings, selectedId]
-  );
+  const selectedListing = useMemo(() => {
+    const fromSearch = allListings.find((l) => l.property.id === selectedId);
+    if (fromSearch) return fromSearch;
+    // A saved listing may no longer be in the current search results (its
+    // snapshot is what makes it viewable regardless) — fall back to that.
+    const saved = savedListings.find((s) => s.propertyId === selectedId);
+    if (!saved) return null;
+    return {
+      property: saved.property,
+      rentEstimate: saved.rentEstimate,
+      roi: computeROI(saved.property, saved.rentEstimate.monthlyRent, assumptions),
+    };
+  }, [allListings, selectedId, savedListings, assumptions]);
   const compareListings = useMemo(
     () => compareIds.map((id) => allListings.find((l) => l.property.id === id)).filter((l) => l !== undefined),
     [allListings, compareIds]
@@ -185,7 +384,24 @@ export default function Home() {
   // "City, ST" — the granularity is whatever the caller types) and merges
   // the results. Regions run in parallel; a failure in one region doesn't
   // block the others, it's just reported alongside the merged results.
+  // Skipped entirely when mockDataOnly is on — narrows the local dataset by
+  // the same region syntax instead, with zero RentCast calls.
   async function handleLiveSearch(regions: string[], searchFilters: SearchFilters = filters) {
+    if (mockDataOnly) {
+      const { listings: matched, unparsedRegions } = filterListingsByRegions(mockListings, regions);
+      setRegionErrors(
+        unparsedRegions.map((r) => `${r} (couldn't parse — use a zip, "City, ST", or "County, ST")`)
+      );
+      setLiveError(
+        matched.length === 0 && unparsedRegions.length < regions.length
+          ? "No mock listings match those regions."
+          : null
+      );
+      setMockRegionIds(new Set(matched.map((l) => l.property.id)));
+      switchDataSource("mock");
+      return;
+    }
+
     setLiveLoading(true);
     setLiveError(null);
     setRegionErrors([]);
@@ -436,6 +652,16 @@ export default function Home() {
         </div>
         {session?.user && (
           <div className="flex items-center gap-3">
+            <ProjectsBar
+              projects={projects}
+              activeProjectId={activeProjectId}
+              onSelectProject={(id) => selectProject(id)}
+              onCreateProject={handleCreateProject}
+              onRenameProject={handleRenameProject}
+              onDeleteProject={handleDeleteProject}
+              loading={projectsLoading}
+              error={projectsError}
+            />
             <span className="text-xs text-slate-500">{session.user.email}</span>
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
@@ -449,12 +675,17 @@ export default function Home() {
 
       <LiveSearchBar
         dataSource={dataSource}
+        mockDataOnly={mockDataOnly}
+        onToggleMockDataOnly={setMockDataOnly}
         loading={liveLoading}
         loadingProgress={liveLoadingProgress}
         error={liveError}
         regionErrors={regionErrors}
         onSearch={handleLiveSearch}
-        onUseMockData={() => switchDataSource("mock")}
+        onUseMockData={() => {
+          setMockRegionIds(null);
+          switchDataSource("mock");
+        }}
       />
 
       <FilterPanel
@@ -474,21 +705,37 @@ export default function Home() {
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex items-center gap-1 border-b border-slate-200 bg-white px-3 py-1.5">
             <button
-              onClick={() => setView("table")}
+              onClick={() => {
+                setShowSaved(false);
+                setView("table");
+              }}
               className={`rounded px-2 py-1 text-xs font-medium ${
-                view === "table" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                !showSaved && view === "table" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Table
             </button>
             <button
-              onClick={() => setView("map")}
+              onClick={() => {
+                setShowSaved(false);
+                setView("map");
+              }}
               className={`rounded px-2 py-1 text-xs font-medium ${
-                view === "map" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                !showSaved && view === "map" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               Map
             </button>
+            {activeProjectId !== null && (
+              <button
+                onClick={() => setShowSaved(true)}
+                className={`rounded px-2 py-1 text-xs font-medium ${
+                  showSaved ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Saved ({savedListings.length})
+              </button>
+            )}
             <div className="ml-auto flex items-center gap-2">
               {avmCandidates.length > 0 && (
                 <button
@@ -523,7 +770,22 @@ export default function Home() {
             </div>
           </div>
 
-          {view === "table" ? (
+          {showSaved ? (
+            <ResultsTable
+              listings={sortListings(savedEnrichedListings, sort)}
+              sort={sort}
+              onSortChange={setSort}
+              onSelect={(listing) => selectListing(listing.property.id)}
+              selectedId={selectedId}
+              compareIds={compareIds}
+              onToggleCompare={toggleCompare}
+              compareLimitReached={compareIds.length >= MAX_COMPARE}
+              onExportPdf={handleExportPdf}
+              savedIds={savedIds}
+              onToggleSave={handleToggleSave}
+              canSave={activeProjectId !== null}
+            />
+          ) : view === "table" ? (
             <ResultsTable
               listings={sorted}
               sort={sort}
@@ -534,6 +796,9 @@ export default function Home() {
               onToggleCompare={toggleCompare}
               compareLimitReached={compareIds.length >= MAX_COMPARE}
               onExportPdf={handleExportPdf}
+              savedIds={savedIds}
+              onToggleSave={handleToggleSave}
+              canSave={activeProjectId !== null}
             />
           ) : (
             <PropertyMap listings={sorted} onSelect={(listing) => selectListing(listing.property.id)} />
@@ -555,6 +820,9 @@ export default function Home() {
         fetchingFloodZone={fetchingFloodFor === selectedListing?.property.id}
         fetchFloodZoneError={fetchFloodError}
         onExportPdf={handleExportPdf}
+        isSaved={selectedListing !== null && savedIds.has(selectedListing.property.id)}
+        onToggleSave={handleToggleSave}
+        canSave={activeProjectId !== null}
       />
 
       {compareOpen && (

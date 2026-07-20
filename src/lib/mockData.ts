@@ -120,6 +120,26 @@ const CITIES: CityDef[] = [
   city("Providence", "RI", "02905", 41.789, -71.404, 270, 1750, 0.0135),
   city("Hartford", "CT", "06106", 41.752, -72.694, 190, 1450, 0.024),
   city("Buffalo", "NY", "14211", 42.9, -78.826, 140, 1200, 0.019),
+  // Additional states/metros so every state has at least one listing and
+  // the map view covers the whole country, not just the largest metros.
+  city("Newark", "NJ", "07104", 40.759, -74.175, 220, 1900, 0.025),
+  city("Denville", "NJ", "07834", 40.887, -74.48, 280, 2300, 0.021),
+  city("Richmond", "VA", "23224", 37.53, -77.46, 230, 1650, 0.0092),
+  city("Virginia Beach", "VA", "23462", 36.849, -76.13, 250, 1750, 0.0082),
+  city("Louisville", "KY", "40212", 38.267, -85.812, 150, 1150, 0.0086),
+  city("Wichita", "KS", "67211", 37.665, -97.313, 140, 1100, 0.0141),
+  city("Jackson", "MS", "39204", 32.284, -90.207, 110, 1050, 0.0081),
+  city("Charleston", "WV", "25304", 38.35, -81.63, 120, 1050, 0.0059),
+  city("Manchester", "NH", "03103", 42.99, -71.463, 290, 1800, 0.0186),
+  city("Burlington", "VT", "05401", 44.476, -73.212, 330, 1900, 0.0186),
+  city("Portland", "ME", "04101", 43.657, -70.259, 340, 1800, 0.0109),
+  city("Billings", "MT", "59101", 45.783, -108.5, 240, 1350, 0.0084),
+  city("Cheyenne", "WY", "82001", 41.14, -104.82, 220, 1350, 0.0061),
+  city("Fargo", "ND", "58103", 46.877, -96.79, 200, 1250, 0.0142),
+  city("Sioux Falls", "SD", "57104", 43.55, -96.7, 195, 1200, 0.0122),
+  city("Anchorage", "AK", "99508", 61.194, -149.816, 310, 1750, 0.0119),
+  city("Honolulu", "HI", "96817", 21.316, -157.858, 780, 2600, 0.0027),
+  city("Wilmington", "DE", "19802", 39.745, -75.539, 175, 1650, 0.0055),
 ];
 
 // Stand-in for HUD Fair Market Rent / Census ACS median rent by zip (PRD 6.1, tier 3).
@@ -403,7 +423,7 @@ function generateMockProperties(count: number): Property[] {
   return properties;
 }
 
-export const MOCK_PROPERTIES: Property[] = generateMockProperties(1000);
+export const MOCK_PROPERTIES: Property[] = generateMockProperties(3000);
 
 // Deterministic pseudo-random comps generator keyed off the property id, so
 // the same property always shows the same comp set during a session.

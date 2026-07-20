@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 
 interface LiveSearchBarProps {
   dataSource: "mock" | "live";
+  // Controls what the Search button does next, independent of dataSource
+  // (which reflects what's currently on screen): true = filter the local
+  // mock dataset, zero RentCast calls; false = call the live API.
+  mockDataOnly: boolean;
+  onToggleMockDataOnly: (value: boolean) => void;
   loading: boolean;
   loadingProgress: { done: number; total: number } | null;
   error: string | null;
@@ -23,6 +28,8 @@ function parseRegions(raw: string): string[] {
 
 export function LiveSearchBar({
   dataSource,
+  mockDataOnly,
+  onToggleMockDataOnly,
   loading,
   loadingProgress,
   error,
@@ -40,13 +47,20 @@ export function LiveSearchBar({
   return (
     <div className="flex flex-col gap-1 border-b border-slate-200 bg-white px-4 py-2">
       <div className="flex items-center gap-2">
-        <span
+        <button
+          type="button"
+          onClick={() => onToggleMockDataOnly(!mockDataOnly)}
+          title={
+            mockDataOnly
+              ? "Mock data only — no RentCast calls. Click to enable the live API."
+              : "Live API is on — Search will call RentCast. Click to switch to mock data only."
+          }
           className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-            dataSource === "live" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
+            mockDataOnly ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"
           }`}
         >
-          {dataSource === "live" ? "Live · RentCast" : "Mock data"}
-        </span>
+          {mockDataOnly ? "Mock data" : "Live · RentCast"}
+        </button>
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -63,7 +77,9 @@ export function LiveSearchBar({
             ? loadingProgress
               ? `Searching ${loadingProgress.done}/${loadingProgress.total}…`
               : "Searching…"
-            : `Search ${regions.length || ""} ${regions.length === 1 ? "region" : "regions"} (${regions.length} API call${regions.length === 1 ? "" : "s"})`}
+            : mockDataOnly
+              ? `Search ${regions.length || ""} ${regions.length === 1 ? "region" : "regions"} (mock, 0 API calls)`
+              : `Search ${regions.length || ""} ${regions.length === 1 ? "region" : "regions"} (${regions.length} API call${regions.length === 1 ? "" : "s"})`}
         </button>
         {dataSource === "live" && (
           <button onClick={onUseMockData} className="text-xs font-medium text-slate-500 hover:underline">

@@ -10,6 +10,11 @@ export interface DashboardUrlState {
   assumptions: FinancingAssumptions;
   sort: SortState;
   view: "table" | "map";
+  // Active project (see lib/projectsStore.ts) — null means the scratch/
+  // no-project mode this app always had. When set, its filters/assumptions/
+  // sort/view are loaded from the database instead of this URL state (see
+  // page.tsx), and further changes auto-save back to the project.
+  projectId: number | null;
 }
 
 export const DEFAULT_URL_STATE: DashboardUrlState = {
@@ -17,6 +22,7 @@ export const DEFAULT_URL_STATE: DashboardUrlState = {
   assumptions: DEFAULT_ASSUMPTIONS,
   sort: { key: "capRatePct", direction: "desc" },
   view: "table",
+  projectId: null,
 };
 
 export function serializeDashboardState(state: DashboardUrlState): string {
@@ -37,6 +43,7 @@ export function parseDashboardState(search: string): DashboardUrlState {
       assumptions: { ...DEFAULT_ASSUMPTIONS, ...(parsed.assumptions ?? {}) },
       sort: { ...DEFAULT_URL_STATE.sort, ...(parsed.sort ?? {}) },
       view: parsed.view === "map" ? "map" : "table",
+      projectId: Number.isInteger(parsed.projectId) ? parsed.projectId : null,
     };
   } catch {
     return DEFAULT_URL_STATE;

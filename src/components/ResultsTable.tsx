@@ -16,6 +16,9 @@ interface ResultsTableProps {
   onToggleCompare: (id: string) => void;
   compareLimitReached: boolean;
   onExportPdf: (listing: EnrichedListing) => void;
+  savedIds: Set<string>;
+  onToggleSave: (listing: EnrichedListing) => void;
+  canSave: boolean;
 }
 
 const COLUMNS: { key: SortKey; label: string }[] = [
@@ -45,6 +48,9 @@ export function ResultsTable({
   onToggleCompare,
   compareLimitReached,
   onExportPdf,
+  savedIds,
+  onToggleSave,
+  canSave,
 }: ResultsTableProps) {
   function handleSort(key: SortKey) {
     if (sort.key === key) {
@@ -147,6 +153,21 @@ export function ResultsTable({
                     title="Download an investment report PDF for this listing"
                   >
                     PDF ⤓
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSave({ property, rentEstimate, roi });
+                    }}
+                    disabled={!canSave}
+                    className={
+                      savedIds.has(property.id)
+                        ? "font-medium text-amber-600 hover:underline disabled:opacity-40"
+                        : "text-blue-600 hover:underline disabled:opacity-40"
+                    }
+                    title={canSave ? "Save to the active project" : "Select or create a project to save listings"}
+                  >
+                    {savedIds.has(property.id) ? "★ Saved" : "☆ Save"}
                   </button>
                 </div>
               </td>

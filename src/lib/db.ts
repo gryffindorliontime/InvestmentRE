@@ -13,7 +13,9 @@ export function isDatabaseConfigured(): boolean {
   return Boolean(process.env.DATABASE_URL);
 }
 
-function sql() {
+// Shared connection accessor — other persistence modules (projectsStore.ts)
+// import this rather than opening their own connection.
+export function sql() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set.");
   return neon(url);

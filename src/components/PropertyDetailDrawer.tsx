@@ -22,6 +22,9 @@ interface PropertyDetailDrawerProps {
   fetchingFloodZone: boolean;
   fetchFloodZoneError: string | null;
   onExportPdf: (listing: EnrichedListing) => void;
+  isSaved: boolean;
+  onToggleSave: (listing: EnrichedListing) => void;
+  canSave: boolean;
 }
 
 const FLOOD_RISK_BADGE: Record<string, string> = {
@@ -94,6 +97,9 @@ export function PropertyDetailDrawer({
   fetchingFloodZone,
   fetchFloodZoneError,
   onExportPdf,
+  isSaved,
+  onToggleSave,
+  canSave,
 }: PropertyDetailDrawerProps) {
   if (!listing) return null;
   const { property, rentEstimate, roi } = listing;
@@ -140,6 +146,18 @@ export function PropertyDetailDrawer({
             title="Download an investment report PDF for this listing"
           >
             Export PDF ⤓
+          </button>
+          <button
+            onClick={() => onToggleSave(listing)}
+            disabled={!canSave}
+            className={
+              isSaved
+                ? "font-medium text-amber-600 hover:underline disabled:opacity-40"
+                : "font-medium text-blue-600 hover:underline disabled:opacity-40"
+            }
+            title={canSave ? "Save to the active project" : "Select or create a project to save listings"}
+          >
+            {isSaved ? "★ Saved" : "☆ Save"}
           </button>
         </div>
 
