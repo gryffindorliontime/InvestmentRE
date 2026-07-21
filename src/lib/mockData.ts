@@ -2,6 +2,7 @@
 // ever calling the RentCast API. Swap this out for src/lib/rentcastClient.ts
 // once live calls are turned on (see ENABLE_LIVE_API in .env.local).
 
+import { getHudCountyTable, getHudStateTable } from "./hudFmr";
 import type { HomeType, ListingStatus, Property, RentComp } from "./types";
 
 // Deterministic PRNG (mulberry32) so the generated dataset is stable across
@@ -162,33 +163,6 @@ const CITY_BASELINE_RENTS: Record<string, Record<number, number>> = Object.fromE
   CITIES.map((c) => [`${c.city}|${c.state}`, c.rentByBeds])
 );
 
-// Approximate statewide median 2-bedroom asking rents (demo-grade, in the
-// spirit of Census ACS / HUD FMR levels). The free fallback for live
-// listings outside the metro tables — beats a flat national default without
-// costing API calls. Bedroom scaling matches the city tables.
-const STATE_2BR_RENTS: Record<string, number> = {
-  AL: 1150, AK: 1350, AZ: 1550, AR: 1000, CA: 2400, CO: 1800, CT: 1800,
-  DE: 1500, DC: 2300, FL: 1900, GA: 1500, HI: 2400, ID: 1400, IL: 1500,
-  IN: 1200, IA: 1050, KS: 1100, KY: 1100, LA: 1150, ME: 1500, MD: 1800,
-  MA: 2500, MI: 1250, MN: 1400, MS: 1050, MO: 1150, MT: 1400, NE: 1100,
-  NV: 1500, NH: 1800, NJ: 2100, NM: 1250, NY: 2200, NC: 1450, ND: 1000,
-  OH: 1150, OK: 1050, OR: 1600, PA: 1400, RI: 1900, SC: 1400, SD: 1050,
-  TN: 1400, TX: 1450, UT: 1600, VT: 1600, VA: 1650, WA: 1900, WV: 950,
-  WI: 1250, WY: 1100,
-};
-
-function stateBaselineTable(state: string): Record<number, number> | undefined {
-  const rent2br = STATE_2BR_RENTS[state];
-  if (rent2br === undefined) return undefined;
-  return {
-    1: Math.round(rent2br * 0.75),
-    2: rent2br,
-    3: Math.round(rent2br * 1.25),
-    4: Math.round(rent2br * 1.5),
-    5: Math.round(rent2br * 1.75),
-  };
-}
-
 function zipBaselineFor(zip: string, beds: number): number {
   const table = ZIP_BASELINE_RENTS[zip];
   if (!table) return 1200;
@@ -196,11 +170,27 @@ function zipBaselineFor(zip: string, beds: number): number {
   return table[clampedBeds] ?? 1200;
 }
 
-export function getZipBaselineRent(zip: string, beds: number, city?: string, state?: string): number {
+// Baseline priority: exact zip match (the mock dataset's own tuned number —
+// only ever coincides for a real listing) → real HUD county Fair Market Rent
+// when the county is known (live listings only — RentCast reports it, the
+// mock dataset doesn't) → curated city table (mock-tuned; for live listings
+// this only fires when HUD had no county match) → real HUD statewide FMR →
+// flat default. HUD ranks above the curated city table on purpose: that
+// table is demo data hand-tuned to *look* plausible for ~58 metros, and
+// several of those city names (Dallas, Houston, Seattle…) are exactly what
+// live searches hit — real government data should win over a demo guess.
+export function getZipBaselineRent(
+  zip: string,
+  beds: number,
+  city?: string,
+  state?: string,
+  county?: string
+): number {
   const table =
     ZIP_BASELINE_RENTS[zip] ??
+    (county && state ? getHudCountyTable(county, state) : undefined) ??
     (city && state ? CITY_BASELINE_RENTS[`${city}|${state}`] : undefined) ??
-    (state ? stateBaselineTable(state) : undefined);
+    (state ? getHudStateTable(state) : undefined);
   if (!table) return 1200;
   const clampedBeds = Math.max(1, Math.min(5, beds || 1));
   return table[clampedBeds] ?? 1200;
@@ -245,15 +235,18 @@ const HOME_TYPE_RENT_FACTOR: Record<HomeType, number> = {
 };
 
 // Per-unit monthly rent baseline for a property: zip/bedroom table adjusted
-// for home style, falling back zip → city → state → flat default. Use this
-// instead of getZipBaselineRent when a full property is in hand.
+// for home style, falling back zip → HUD county → city → HUD state → flat
+// default (see getZipBaselineRent for why HUD outranks the curated city
+// table). Use this instead of getZipBaselineRent when a full property is in
+// hand — it has property.county, which live RentCast listings report.
 export function getRentBaselineForProperty(property: Property): number {
   const factor = HOME_TYPE_RENT_FACTOR[property.homeType] ?? 1;
   const beds = perUnitBeds(property);
   const table =
     ZIP_BASELINE_RENTS[property.zip] ??
+    (property.county ? getHudCountyTable(property.county, property.state) : undefined) ??
     CITY_BASELINE_RENTS[`${property.city}|${property.state}`] ??
-    stateBaselineTable(property.state);
+    getHudStateTable(property.state);
   const clampedBeds = Math.max(1, Math.min(5, beds || 1));
   const baseline = table?.[clampedBeds] ?? 1200;
   return Math.round(baseline * factor);
