@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 
 interface LiveSearchBarProps {
   dataSource: "mock" | "live";
-  // Controls what the Search button does next, independent of dataSource
-  // (which reflects what's currently on screen): true = filter the local
-  // mock dataset, zero RentCast calls; false = call the live API.
+  // Controls whether this bar is even active: it exists to control the live
+  // RentCast API's call scope. In mock mode it has nothing useful to do —
+  // the Location filter below already narrows the local dataset for free,
+  // including by county — so it collapses to a one-line hint instead of a
+  // second, differently-behaved search box.
   mockDataOnly: boolean;
   onToggleMockDataOnly: (value: boolean) => void;
   loading: boolean;
@@ -61,34 +63,41 @@ export function LiveSearchBar({
         >
           {mockDataOnly ? "Mock data" : "Live · RentCast"}
         </button>
-        <textarea
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          rows={1}
-          placeholder={'One region per line (or ; separated) — zips, "City/Town, ST", or "Name County, ST" mixed freely, e.g.:\n75217\nFort Worth, TX\nCollin County, TX'}
-          className="w-[28rem] resize-y rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
-        />
-        <button
-          onClick={submit}
-          disabled={loading || regions.length === 0}
-          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading
-            ? loadingProgress
-              ? `Searching ${loadingProgress.done}/${loadingProgress.total}…`
-              : "Searching…"
-            : mockDataOnly
-              ? `Search ${regions.length || ""} ${regions.length === 1 ? "region" : "regions"} (mock, 0 API calls)`
-              : `Search ${regions.length || ""} ${regions.length === 1 ? "region" : "regions"} (${regions.length} API call${regions.length === 1 ? "" : "s"})`}
-        </button>
+        {mockDataOnly ? (
+          <span className="text-xs text-slate-500">
+            Use the <strong>Location</strong> filter below to narrow the mock data — city, zip, or county
+            (e.g. &quot;Morris County, NJ&quot;) all work there, free.
+          </span>
+        ) : (
+          <>
+            <textarea
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              rows={1}
+              placeholder={'One region per line (or ; separated) — zips, "City/Town, ST", or "Name County, ST" mixed freely, e.g.:\n75217\nFort Worth, TX\nCollin County, TX'}
+              className="w-[28rem] resize-y rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
+            />
+            <button
+              onClick={submit}
+              disabled={loading || regions.length === 0}
+              className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading
+                ? loadingProgress
+                  ? `Searching ${loadingProgress.done}/${loadingProgress.total}…`
+                  : "Searching…"
+                : `Search ${regions.length || ""} ${regions.length === 1 ? "region" : "regions"} (${regions.length} API call${regions.length === 1 ? "" : "s"})`}
+            </button>
+          </>
+        )}
         {dataSource === "live" && (
           <button onClick={onUseMockData} className="text-xs font-medium text-slate-500 hover:underline">
             Back to mock data
           </button>
         )}
       </div>
-      {error && <span className="text-xs text-rose-600">{error}</span>}
-      {regionErrors.length > 0 && (
+      {!mockDataOnly && error && <span className="text-xs text-rose-600">{error}</span>}
+      {!mockDataOnly && regionErrors.length > 0 && (
         <span className="text-xs text-amber-600">
           {regionErrors.length} region{regionErrors.length === 1 ? "" : "s"} failed: {regionErrors.join("; ")}
         </span>

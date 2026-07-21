@@ -1,4 +1,3 @@
-import { parseLocationQuery } from "./locationParse";
 import { getCompsForProperty, getRentBaselineForProperty, MOCK_PROPERTIES } from "./mockData";
 import { estimateRent } from "./rentEstimate";
 import { computeROI } from "./roi";
@@ -70,37 +69,6 @@ export function buildEnrichedListingsFromLive(
   });
 }
 
-// Mock-mode stand-in for a live regional search: parses each typed region
-// the same way /api/search does (zip / "City, ST" / "Name County, ST") and
-// keeps any listing matching at least one of them. Never calls RentCast.
-// Mock properties don't carry a county field, so a county region falls back
-// to matching the whole state.
-export function filterListingsByRegions(
-  listings: EnrichedListing[],
-  regions: string[]
-): { listings: EnrichedListing[]; unparsedRegions: string[] } {
-  const unparsedRegions: string[] = [];
-  const parsedLocations = regions.flatMap((region) => {
-    const parsed = parseLocationQuery(region);
-    if (!parsed) {
-      unparsedRegions.push(region);
-      return [];
-    }
-    return [parsed];
-  });
-
-  const matched = listings.filter(({ property }) =>
-    parsedLocations.some((loc) => {
-      if (loc.zipCode) return property.zip === loc.zipCode;
-      if (loc.city) return property.city.toLowerCase() === loc.city.toLowerCase() && property.state === loc.state;
-      if (loc.county) return property.state === loc.state;
-      return false;
-    })
-  );
-
-  return { listings: matched, unparsedRegions };
-}
-
 function matchesRange(value: number, min: number | null, max: number | null): boolean {
   if (min !== null && value < min) return false;
   if (max !== null && value > max) return false;
@@ -120,17 +88,27 @@ function normalizeLocationText(value: string): string {
 }
 
 export function applyFilters(listings: EnrichedListing[], filters: SearchFilters): EnrichedListing[] {
-  const locationQuery = normalizeLocationText(filters.location);
+  // Word-AND, not a single ordered substring: "Morris County, NJ" normalizes
+  // to "morris county nj", but the haystack is built city-state-zip-county —
+  // state comes *before* county there, so a naive `.includes()` never
+  // matches a "County, ST" query even when the data is right. Requiring
+  // every query word to appear somewhere in the haystack is order-agnostic,
+  // so "City, ST" and "County, ST" both work regardless of field order.
+  const locationWords = normalizeLocationText(filters.location).split(" ").filter(Boolean);
   const keywordQuery = filters.keyword.trim().toLowerCase();
 
   return listings.filter(({ property, roi }) => {
-    if (locationQuery) {
+    if (locationWords.length > 0) {
+      // Louisiana calls its counties "parishes" — include both suffix words
+      // so either search term matches, rather than guessing which the user
+      // will type.
+      const countySuffix = property.state === "LA" ? "county parish" : "county";
       const haystack = normalizeLocationText(
         `${property.city} ${property.state} ${property.zip} ${
-          property.county ? `${property.county} county` : ""
+          property.county ? `${property.county} ${countySuffix}` : ""
         }`
       );
-      if (!haystack.includes(locationQuery)) return false;
+      if (!locationWords.every((word) => haystack.includes(word))) return false;
     }
 
     if (filters.states.length > 0 && !filters.states.includes(property.state)) return false;

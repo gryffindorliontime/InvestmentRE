@@ -19,7 +19,6 @@ import {
   applyFilters,
   buildEnrichedListings,
   buildEnrichedListingsFromLive,
-  filterListingsByRegions,
   sortListings,
   type EnrichedListing,
 } from "@/lib/searchEngine";
@@ -58,11 +57,11 @@ export default function Home() {
   const [compareOpen, setCompareOpen] = useState(false);
 
   const [dataSource, setDataSource] = useState<"mock" | "live">("mock");
-  // What the Search button does next: mock-filters the local dataset (no
-  // RentCast calls) when true, calls the live API when false. Defaults on —
-  // no network call happens until the user explicitly flips this off.
+  // Gates the live region-search bar (LiveSearchBar hides itself when this
+  // is true, since the Location filter already covers mock narrowing for
+  // free). Defaults on — no RentCast call happens until explicitly flipped
+  // off.
   const [mockDataOnly, setMockDataOnly] = useState(true);
-  const [mockRegionIds, setMockRegionIds] = useState<Set<string> | null>(null);
   const [liveEntries, setLiveEntries] = useState<LiveEntry[]>([]);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveLoadingProgress, setLiveLoadingProgress] = useState<{ done: number; total: number } | null>(
@@ -296,20 +295,12 @@ export default function Home() {
     () => buildEnrichedListings(assumptions, floodOverrides),
     [assumptions, floodOverrides]
   );
-  // Narrowed by a mock-mode region search (see handleLiveSearch) — stores
-  // just the matched ids so ROI stays reactive to assumption changes instead
-  // of freezing at search time. Null means no region search yet: show
-  // everything.
-  const mockSearchListings = useMemo(
-    () => (mockRegionIds ? mockListings.filter((l) => mockRegionIds.has(l.property.id)) : mockListings),
-    [mockListings, mockRegionIds]
-  );
   const liveListings = useMemo(
     () =>
       buildEnrichedListingsFromLive(liveEntries, assumptions, rentOverrides, taxOverrides, floodOverrides),
     [liveEntries, assumptions, rentOverrides, taxOverrides, floodOverrides]
   );
-  const allListings = dataSource === "live" ? liveListings : mockSearchListings;
+  const allListings = dataSource === "live" ? liveListings : mockListings;
 
   const filtered = useMemo(() => applyFilters(allListings, filters), [allListings, filters]);
   const sorted = useMemo(() => sortListings(filtered, sort), [filtered, sort]);
@@ -387,24 +378,9 @@ export default function Home() {
   // "City, ST" — the granularity is whatever the caller types) and merges
   // the results. Regions run in parallel; a failure in one region doesn't
   // block the others, it's just reported alongside the merged results.
-  // Skipped entirely when mockDataOnly is on — narrows the local dataset by
-  // the same region syntax instead, with zero RentCast calls.
+  // Only ever called in live mode — LiveSearchBar hides the textarea/button
+  // entirely when mockDataOnly is on (the Location filter covers that case).
   async function handleLiveSearch(regions: string[], searchFilters: SearchFilters = filters) {
-    if (mockDataOnly) {
-      const { listings: matched, unparsedRegions } = filterListingsByRegions(mockListings, regions);
-      setRegionErrors(
-        unparsedRegions.map((r) => `${r} (couldn't parse — use a zip, "City, ST", or "County, ST")`)
-      );
-      setLiveError(
-        matched.length === 0 && unparsedRegions.length < regions.length
-          ? "No mock listings match those regions."
-          : null
-      );
-      setMockRegionIds(new Set(matched.map((l) => l.property.id)));
-      switchDataSource("mock");
-      return;
-    }
-
     setLiveLoading(true);
     setLiveError(null);
     setRegionErrors([]);
@@ -685,10 +661,7 @@ export default function Home() {
         error={liveError}
         regionErrors={regionErrors}
         onSearch={handleLiveSearch}
-        onUseMockData={() => {
-          setMockRegionIds(null);
-          switchDataSource("mock");
-        }}
+        onUseMockData={() => switchDataSource("mock")}
       />
 
       <FilterPanel

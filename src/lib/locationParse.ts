@@ -28,7 +28,10 @@ export function parseLocationQuery(input: string): ParsedLocation | null {
     const place = parts[0];
     const state = parts[1].toUpperCase();
     if (/^[A-Z]{2}$/.test(state)) {
-      const countyMatch = place.match(/^(.+?)\s+county$/i);
+      // Louisiana calls its county-equivalents "parishes" — accept either
+      // suffix; both map to the same `county` field since every consumer
+      // (live RentCast filtering, mock data) just needs the bare name.
+      const countyMatch = place.match(/^(.+?)\s+(?:county|parish)$/i);
       if (countyMatch) {
         return { county: capitalizeWords(countyMatch[1]), state };
       }
