@@ -107,15 +107,29 @@ function matchesRange(value: number, min: number | null, max: number | null): bo
   return true;
 }
 
+// Commas are natural to type in a location query ("Denville, NJ") but never
+// appear in the haystack we match against — strip them (and collapse the
+// resulting whitespace) on both sides so punctuation doesn't sink an
+// otherwise-correct search.
+function normalizeLocationText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/,/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function applyFilters(listings: EnrichedListing[], filters: SearchFilters): EnrichedListing[] {
-  const locationQuery = filters.location.trim().toLowerCase();
+  const locationQuery = normalizeLocationText(filters.location);
   const keywordQuery = filters.keyword.trim().toLowerCase();
 
   return listings.filter(({ property, roi }) => {
     if (locationQuery) {
-      const haystack = `${property.city} ${property.state} ${property.zip} ${
-        property.county ? `${property.county} county` : ""
-      }`.toLowerCase();
+      const haystack = normalizeLocationText(
+        `${property.city} ${property.state} ${property.zip} ${
+          property.county ? `${property.county} county` : ""
+        }`
+      );
       if (!haystack.includes(locationQuery)) return false;
     }
 
