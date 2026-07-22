@@ -19,6 +19,8 @@ interface ResultsTableProps {
   savedIds: Set<string>;
   onToggleSave: (listing: EnrichedListing) => void;
   canSave: boolean;
+  onFetchLiveComps: (listing: EnrichedListing) => void;
+  fetchingCompsFor: string | null;
 }
 
 const COLUMNS: { key: SortKey; label: string }[] = [
@@ -51,6 +53,8 @@ export function ResultsTable({
   savedIds,
   onToggleSave,
   canSave,
+  onFetchLiveComps,
+  fetchingCompsFor,
 }: ResultsTableProps) {
   function handleSort(key: SortKey) {
     if (sort.key === key) {
@@ -169,6 +173,19 @@ export function ResultsTable({
                   >
                     {savedIds.has(property.id) ? "★ Saved" : "☆ Save"}
                   </button>
+                  {property.source === "rentcast" && rentEstimate.method !== "comps" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFetchLiveComps({ property, rentEstimate, roi });
+                      }}
+                      disabled={fetchingCompsFor === property.id}
+                      className="text-blue-600 hover:underline disabled:opacity-40"
+                      title="Upgrade to a RentCast comps-based rent estimate — 1 API call"
+                    >
+                      {fetchingCompsFor === property.id ? "AVM…" : "AVM rent (1 call)"}
+                    </button>
+                  )}
                 </div>
               </td>
               <td className="px-3 py-2 font-medium text-slate-900">{formatCurrency(property.price)}</td>
